@@ -65,6 +65,7 @@ gast==0.4.0
 gdown==5.2.0
 google-auth==2.40.3
 google-auth-oauthlib==1.0.0
+google-pasta==0.2.0
 grpcio==1.73.1
 gruut==2.2.3
 gruut-ipa==0.13.0
@@ -214,10 +215,10 @@ tensorboard==2.12.3
 tensorboard-data-server==0.7.2
 tensorboard-plugin-wit==1.8.1
 tensorflow==2.12.0
-tensorflow-cpu==2.9.1
 tensorflow-estimator==2.12.0
 tensorflow-intel==2.12.0
 tensorflow-io-gcs-filesystem==0.31.0
+tensorflow_cpu==2.20.0
 termcolor==3.1.0
 thinc==8.3.4
 threadpoolctl==3.6.0
