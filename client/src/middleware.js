@@ -3,6 +3,16 @@ import { jwtVerify, SignJWT } from "jose";
 import { toast } from "sonner";
 
 export async function middleware(request) {
+  // HTTPS Redirect (for production)
+  if (
+    process.env.NODE_ENV === "production" &&
+    request.headers.get("x-forwarded-proto") !== "https"
+  ) {
+    const url = new URL(request.url);
+    url.protocol = "https:";
+    return NextResponse.redirect(url, 301);
+  }
+
   const { pathname } = request.nextUrl;
   const cookies = request.cookies;
   const accessToken = cookies.get("accessToken")?.value;
@@ -104,7 +114,9 @@ export async function middleware(request) {
       response.cookies.set("accessToken", newAccessToken, {
         httpOnly: true,
         sameSite: "None",
-        secure: process.env.NODE_ENV === "production", // 👈 secure only in prod
+        secure:
+          process.env.NODE_ENV === "production" ||
+          request.headers.get("x-forwarded-proto") === "https",
         path: "/",
       });
 
