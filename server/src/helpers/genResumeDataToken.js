@@ -26,7 +26,7 @@ const genResumeDataToken = (req, res) => {
   res.cookie("rDV", token, {
     httpOnly: false,
     secure: process.env.NODE_ENV === "production",
-    sameSite: "Strict",
+    sameSite: "None",
     maxAge: 60 * 60 * 1000, // 1 hour
   });
   res.json({ success: true, message: "Set successfully" });

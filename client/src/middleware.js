@@ -103,7 +103,7 @@ export async function middleware(request) {
 
       response.cookies.set("accessToken", newAccessToken, {
         httpOnly: true,
-        sameSite: "Lax",
+        sameSite: "None",
         secure: process.env.NODE_ENV === "production", // 👈 secure only in prod
         path: "/",
       });

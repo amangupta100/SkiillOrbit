@@ -64,7 +64,7 @@ export default function AppHeader({ questions = 0, isInstructionShown }) {
       Cookies.set("tt", JSON.stringify({ endTime }), {
         expires: new Date(endTime),
         secure: true,
-        sameSite: "strict",
+        sameSite: "None",
       });
       setRemainingTime(totalTime);
       setShowTimer(true);
