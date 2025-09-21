@@ -1,0 +1,76 @@
+# ===============================
+# Python / FastAPI
+# ===============================
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.pyc
+*.so
+*.egg-info/
+*.egg
+*.log
+
+# Virtual env
+venv/
+.env
+.venv/
+env/
+ENV/
+
+# Byte-compiled
+*.sqlite3
+db.sqlite3
+
+# Coverage / testing
+.coverage
+htmlcov/
+.pytest_cache/
+
+# ===============================
+# Node.js / Next.js
+# ===============================
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
+# Build output
+.next/
+dist/
+out/
+build/
+.cache/
+coverage/
+storybook-static/
+
+# ===============================
+# Environment & Secrets
+# ===============================
+.env
+.env.* 
+*.local
+*.secret
+secrets.json
+config.json
+
+# ===============================
+# OS / Editor junk files
+# ===============================
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+*.swo
+*.tmp
+
+# ===============================
+# Logs
+# ===============================
+*.log
+logs/
