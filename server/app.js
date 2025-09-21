@@ -14,8 +14,21 @@ const { interview_Socket } = require("./src/config/interview_socket");
 const app = express();
 const server = http.createServer(app);
 
+app.set("trust proxy", 1); // Trust first proxy (for production environments like Heroku, etc.)
+
 // Connect to MongoDB
 mongodb();
+
+// HTTPS Redirect Middleware (for production)
+app.use((req, res, next) => {
+  if (
+    process.env.NODE_ENV === "production" &&
+    req.headers["x-forwarded-proto"] !== "https"
+  ) {
+    return res.redirect(`https://${req.headers.host}${req.url}`);
+  }
+  next();
+});
 
 // Middleware
 app.use(
