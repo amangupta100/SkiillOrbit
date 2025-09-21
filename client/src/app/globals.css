@@ -1,5 +1,4 @@
 @import "tailwindcss";
-@import "tw-animate-css";
 
 @custom-variant dark (&:is(.dark *));
 
@@ -129,4 +128,8 @@
 
 .no-visible-scrollbar::-webkit-scrollbar {
   display: none;
+}
+
+* {
+  font-family: "Outfit";
 }

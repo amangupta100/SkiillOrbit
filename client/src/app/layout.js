@@ -1,14 +1,6 @@
 import "./globals.css";
 import { Toaster } from "@/components/ui/sonner";
 import LayoutContent from "./RootLayoutContent";
-import { Outfit } from "next/font/google";
-// import "@/components/lightswind.css";
-
-const outfit = Outfit({
-  subsets: ["latin"],
-  variable: "--font-outfit",
-  display: "swap",
-});
 
 export const metadata = {
   title: "SkillOrbit",
@@ -21,14 +13,16 @@ export const metadata = {
 
 export default function RootLayout({ children }) {
   return (
-    <html
-      lang="en"
-      className={`${outfit.variable} font-sans`}
-      suppressHydrationWarning
-    >
+    <html lang="en" suppressHydrationWarning>
+      <head>
+        {/* Google Fonts link */}
+        <link
+          href="https://fonts.googleapis.com/css2?family=Outfit:ital,wght@0,100..900;1,100..900&family=Outfit:wght@100..900&family=Smooch+Sans:wght@100..900&display=swap"
+          rel="stylesheet"
+        />
+      </head>
       <body className="font-body antialiased">
         <LayoutContent />
-
         <main className="pt-0">{children}</main>
         <Toaster position="top-center" richColors={true} />
       </body>
