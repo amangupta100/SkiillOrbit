@@ -69,3 +69,4 @@ async def verify_face(req: FaceVerificationRequest):
     except Exception as e:
         logger.exception("Face verification failed")
         raise HTTPException(status_code=500, detail="Internal Server Error")
+    
