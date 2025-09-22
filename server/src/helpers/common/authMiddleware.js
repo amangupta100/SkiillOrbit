@@ -6,10 +6,13 @@ const authMiddleware = async (req, res, next) => {
   const accessToken = req.cookies.accessToken;
   const refreshToken = req.cookies.refreshToken;
 
-  if (!accessToken && !refreshToken) {
+  if (!refreshToken) {
     return res
       .status(401)
-      .json({ success: false, message: "Unauthorized Access" });
+      .json({
+        success: false,
+        message: "Unauthorized Access or Session Expired",
+      });
   }
 
   try {

@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
-import { jwtVerify, SignJWT } from "jose";
-import { toast } from "sonner";
+import { jwtVerify } from "jose";
 
 export async function middleware(request) {
   const { pathname } = request.nextUrl;
@@ -68,75 +67,35 @@ export async function middleware(request) {
 
   if (shouldRefresh) {
     try {
-      const { payload } = await jwtVerify(
-        refreshToken,
-        new TextEncoder().encode(process.env.REFRESH_SECRET_KEY || "")
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_API_BASE_URL}/common/auth/refreshToken`,
+        {
+          method: "POST",
+          credentials: "include",
+        }
       );
 
-      if (!payload || !payload.id || !payload.role) {
-        throw new Error("Invalid refresh token payload");
+      if (!res.ok) {
+        response.cookies.delete("accessToken");
+        response.cookies.delete("refreshToken");
+        return NextResponse.redirect(new URL("/login/job-seeker", request.url));
       }
 
-      // Common JWT payload
-      const basePayload = {
-        id: payload.id,
-        role: payload.role,
-        name: payload.name,
-      };
-
-      // Recruiter gets only base payload, user gets extra fields
-      const tokenPayload =
-        payload.role === "recruiter"
-          ? basePayload
-          : {
-              ...basePayload,
-              desiredRole: payload.desiredRole,
-              domain: payload.domain,
-            };
-
-      // Generate new token
-      const newAccessToken = await new SignJWT(tokenPayload)
-        .setProtectedHeader({ alg: "HS256" })
-        .setIssuedAt()
-        .setExpirationTime("15m")
-        .sign(new TextEncoder().encode(process.env.ACCESS_SECRET_KEY || ""));
-
-      response.cookies.set("accessToken", newAccessToken, {
-        httpOnly: true,
-        sameSite: "none",
-        secure: true,
-        path: "/",
-      });
-
-      role = payload.role;
+      const data = await res.json();
+      role = data?.res?.role;
     } catch (error) {
-      console.error("Token refresh failed:", error.message);
-
+      console.error("Refresh token failed:", error);
       response.cookies.delete("accessToken");
       response.cookies.delete("refreshToken");
-
-      if (
-        pathname.startsWith("/userDashboard") ||
-        pathname.startsWith("/recruiterDashboard")
-      ) {
-        return NextResponse.redirect(
-          new URL(
-            `/login/${
-              pathname.includes("recruiterDashboard")
-                ? "recruiter"
-                : "job-seeker"
-            }`,
-            request.url
-          )
-        );
-      }
-
-      return response;
+      return NextResponse.redirect(new URL("/login/job-seeker", request.url));
     }
   }
 
   // 3. Block unauthenticated access to protected routes
   if (!isAuthenticated) {
+    if (pathname.startsWith("/userDashboard")) {
+      return NextResponse.redirect(new URL("/login/job-seeker", request.url));
+    }
     if (pathname.startsWith("/recruiterDashboard")) {
       return NextResponse.redirect(new URL("/login/recruiter", request.url));
     }
