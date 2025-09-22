@@ -4,7 +4,7 @@ const nextConfig = {
 
   // Images config
   images: {
-    domains: ["localhost:3000"], // agar future me aur domains add karne ho to comma separated
+    domains: ["localhost:3000"], // future me aur domains add kar sakte ho
   },
 
   // Proxy backend requests to the Render backend
@@ -21,4 +21,4 @@ const nextConfig = {
   },
 };
 
-module.exports = nextConfig;
+export default nextConfig;
