@@ -13,9 +13,11 @@ const layout = ({ children }) => {
   const checkAuth = useRecruiterAuthStore((state) => state.checkAuth);
   const router = useRouter();
 
+  const backendSocketURL = process.env.NEXT_PUBLIC_SOCKET_URL + "/UserStatus";
+
   useEffect(() => {
     if (!recruiter) return;
-    const socket = io("http://localhost:5000/UserStatus", {
+    const socket = io(backendSocketURL, {
       query: { userId: recruiter.id, role_type: "recruiter" },
       withCredentials: true,
     });

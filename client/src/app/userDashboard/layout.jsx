@@ -32,10 +32,12 @@ export default function DashboardLayout({ children }) {
     });
   }, [user]);
 
+  const backendSocketURL = process.env.NEXT_PUBLIC_SOCKET_URL + "/UserStatus";
+
   useEffect(() => {
     if (!user) return;
 
-    const socket = io("http://localhost:5000/UserStatus", {
+    const socket = io(backendSocketURL, {
       query: {
         userId: user.id,
         role_type: "job-seeker",
