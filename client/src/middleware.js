@@ -43,7 +43,7 @@ export async function middleware(request) {
       pathname.startsWith("/userDashboard") ||
       pathname.startsWith("/recruiterDashboard")
     ) {
-      // response.cookies.delete("accessToken");
+      response.cookies.delete("accessToken");
       return NextResponse.redirect(new URL("/login/job-seeker", request.url));
     }
   }
@@ -76,8 +76,8 @@ export async function middleware(request) {
       );
 
       if (!res.ok) {
-        // response.cookies.delete("accessToken");
-        // response.cookies.delete("refreshToken");
+        response.cookies.delete("accessToken");
+        response.cookies.delete("refreshToken");
         return NextResponse.redirect(new URL("/login/job-seeker", request.url));
       }
 
@@ -85,17 +85,17 @@ export async function middleware(request) {
       role = data?.res?.role;
     } catch (error) {
       console.error("Refresh token failed:", error);
-      // response.cookies.delete("accessToken");
-      // response.cookies.delete("refreshToken");
+      response.cookies.delete("accessToken");
+      response.cookies.delete("refreshToken");
       return NextResponse.redirect(new URL("/login/job-seeker", request.url));
     }
   }
 
   // 3. Block unauthenticated access to protected routes
   if (!isAuthenticated) {
-    if (pathname.startsWith("/userDashboard")) {
-      return NextResponse.redirect(new URL("/login/job-seeker", request.url));
-    }
+    // if (pathname.startsWith("/userDashboard")) {
+    //   return NextResponse.redirect(new URL("/login/job-seeker", request.url));
+    // }
     if (pathname.startsWith("/recruiterDashboard")) {
       return NextResponse.redirect(new URL("/login/recruiter", request.url));
     }
