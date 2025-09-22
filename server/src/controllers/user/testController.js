@@ -134,7 +134,7 @@ const genTest = async (req, res) => {
 const testSubmit = async (req, res) => {
   res.clearCookie("td", {
     httpOnly: true, // Must match original cookie settings
-    secure: process.env.NODE_ENV === "production", // Must match original
+    secure: true, // Must match original
     sameSite: "none",
     maxAge: 4 * 60 * 60 * 1000, // cookie life matches token
   });

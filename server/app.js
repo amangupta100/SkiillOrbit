@@ -54,6 +54,7 @@ app.use(
   "/api/job-seeker/skills",
   require("./src/routes/user/JobSkillDataRoute")
 );
+app.use("/api/job-seeker/", require("./src/routes/user/streakRoutes"));
 app.use("/api/job-seeker/opportunity", require("./src/routes/user/jobRoutes"));
 app.use("/api/job-seeker/tests", require("./src/routes/user/testRoute"));
 app.use("/api/job-seeker/profile", require("./src/routes/user/profileRoute"));
