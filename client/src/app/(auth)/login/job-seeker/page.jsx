@@ -55,7 +55,7 @@ const page = () => {
           id: response.data.user.id,
           name: response.data.user.name,
         });
-        window.location.href = "/userDashboard";
+        router.push("/userDashboard");
       } else {
         toast.error(message);
       }
