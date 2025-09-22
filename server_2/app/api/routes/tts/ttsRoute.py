@@ -100,7 +100,7 @@ async def create_tts_session(
         key="sessionID",
         value=session_jwt,
         httponly=True,
-        samesite="lax",
+        samesite="none",
         secure=True,  # ✅ enforce HTTPS in production
         path="/",
         max_age=3600

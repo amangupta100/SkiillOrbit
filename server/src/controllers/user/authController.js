@@ -32,7 +32,7 @@ const register = async (req, res) => {
           res.cookie("profileSetupPending", "true", {
             httpOnly: true, // can be read by frontend/middleware
             secure: true,
-            sameSite: "None",
+            sameSite: "none",
             maxAge: 60 * 60 * 1000, // 1 hour
           });
 
@@ -151,7 +151,7 @@ const profileSetupEnd = async (req, res) => {
     res.clearCookie("profileSetupPending", {
       httpOnly: true, // Must match original cookie settings
       secure: true, // Must match original
-      sameSite: "None",
+      sameSite: "none",
       path: "/", // Important to specify path
     });
 
@@ -171,14 +171,14 @@ const clearAccRefCook = async (req, res) => {
   res.clearCookie("accessToken", {
     httpOnly: true, // Must match original cookie settings
     secure: true, // Must match original
-    sameSite: "None",
+    sameSite: "none",
     path: "/", // Important to specify path
   });
 
   res.clearCookie("refreshToken", {
     httpOnly: true, // Must match original cookie settings
     secure: true, // Must match original
-    sameSite: "None",
+    sameSite: "none",
     path: "/", // Important to specify path
   });
 

@@ -11,7 +11,7 @@ const setProfilePendingCookie = async (req, res) => {
   res.cookie("profileSetupPending", "true", {
     httpOnly: true, // can be read by frontend/middleware
     secure: true,
-    sameSite: "None",
+    sameSite: "none",
     maxAge: 60 * 60 * 1000, // 1 hour
   });
   res.json({ success: "true", message: "Cookie setup successful" });
@@ -101,13 +101,13 @@ const logout = async (req, res) => {
     res.clearCookie("accessToken", {
       httpOnly: true,
       secure: true, // set to true in production
-      sameSite: "None",
+      sameSite: "none",
     });
 
     res.clearCookie("refreshToken", {
       httpOnly: true,
       secure: true, // set to true in production
-      sameSite: "None",
+      sameSite: "none",
     });
     res.json({
       message: "Logged out successfully",
@@ -207,7 +207,7 @@ const register = async (req, res) => {
         res.clearCookie("profileSetupPending", {
           httpOnly: true,
           secure: true,
-          sameSite: "None",
+          sameSite: "none",
         });
 
         // Generate new session token

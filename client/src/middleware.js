@@ -113,7 +113,7 @@ export async function middleware(request) {
 
       response.cookies.set("accessToken", newAccessToken, {
         httpOnly: true,
-        sameSite: "None",
+        sameSite: "none",
         secure:
           process.env.NODE_ENV === "production" ||
           request.headers.get("x-forwarded-proto") === "https",
