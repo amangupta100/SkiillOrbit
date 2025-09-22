@@ -109,10 +109,6 @@ const authMiddleware = async (req, res, next) => {
         secure: process.env.NODE_ENV === "production",
         sameSite: "none",
         maxAge: 15 * 60 * 1000,
-        domain:
-          process.env.NODE_ENV == "production"
-            ? "skiillorbit.onrender.com"
-            : "localhost",
       });
 
       // Attach user or recruiter based on role

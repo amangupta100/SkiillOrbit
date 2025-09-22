@@ -13,10 +13,6 @@ const setProfilePendingCookie = async (req, res) => {
     secure: true,
     sameSite: "none",
     maxAge: 60 * 60 * 1000, // 1 hour
-    domain:
-      process.env.NODE_ENV == "production"
-        ? "skiillorbit.onrender.com"
-        : "localhost",
   });
   res.json({ success: "true", message: "Cookie setup successful" });
 };

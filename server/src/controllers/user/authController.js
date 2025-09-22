@@ -34,10 +34,6 @@ const register = async (req, res) => {
             secure: true,
             sameSite: "none",
             maxAge: 60 * 60 * 1000, // 1 hour
-            domain:
-              process.env.NODE_ENV == "production"
-                ? "skiillorbit.onrender.com"
-                : "localhost",
           });
 
           // Access Token — valid for 15 minutes

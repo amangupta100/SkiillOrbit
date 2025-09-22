@@ -17,10 +17,6 @@ const genAccessToken = (user, res) => {
     secure: process.env.NODE_ENV == "production", // true in production (HTTPS)
     sameSite: "none",
     maxAge: 15 * 60 * 1000, // 15 minutes,
-    domain:
-      process.env.NODE_ENV == "production"
-        ? "skiillorbit.onrender.com"
-        : "localhost",
   });
 };
 
@@ -41,10 +37,6 @@ const genRefreshToken = (user, res) => {
     secure: process.env.NODE_ENV == "production",
     sameSite: "none",
     maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days,
-    domain:
-      process.env.NODE_ENV == "production"
-        ? "skiillorbit.onrender.com"
-        : "localhost",
   });
 };
 

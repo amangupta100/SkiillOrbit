@@ -22,10 +22,6 @@ const genTestToken = (req, res) => {
     secure: process.env.NODE_ENV === "production",
     sameSite: "none",
     maxAge: 4 * 60 * 60 * 1000, // cookie life matches token
-    domain:
-      process.env.NODE_ENV == "production"
-        ? "skiillorbit.onrender.com"
-        : "localhost",
   });
 
   res.status(200).json({
