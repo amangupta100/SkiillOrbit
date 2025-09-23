@@ -93,9 +93,9 @@ export async function middleware(request) {
 
   // 3. Block unauthenticated access to protected routes
   if (!isAuthenticated) {
-    if (pathname.startsWith("/userDashboard")) {
-      return NextResponse.redirect(new URL("/login/job-seeker", request.url));
-    }
+    // if (pathname.startsWith("/userDashboard")) {
+    //   return NextResponse.redirect(new URL("/login/job-seeker", request.url));
+    // }
     if (pathname.startsWith("/recruiterDashboard")) {
       return NextResponse.redirect(new URL("/login/recruiter", request.url));
     }
