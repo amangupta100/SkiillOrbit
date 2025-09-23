@@ -9,11 +9,13 @@ const {
 
 const setProfilePendingCookie = async (req, res) => {
   res.cookie("profileSetupPending", "true", {
-    httpOnly: true, // can be read by frontend/middleware
+    httpOnly: true,
     secure: process.env.NODE_ENV === "production",
     sameSite: process.env.NODE_ENV === "production" ? "None" : "Lax",
-    maxAge: 60 * 60 * 1000, // 1 hour
-    domain: ".skillsorbit.in", // allows cookie for both api.skillsorbit.in and skillsorbit.in
+    maxAge: 15 * 60 * 1000, // 15 minutes
+    ...(process.env.NODE_ENV === "production"
+      ? { domain: ".skillsorbit.in" }
+      : {}), // localhost me domain set mat karo
   });
   res.json({ success: "true", message: "Cookie setup successful" });
 };
@@ -103,14 +105,20 @@ const logout = async (req, res) => {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: process.env.NODE_ENV === "production" ? "None" : "Lax",
-      domain: ".skillsorbit.in", // allows cookie for both api.skillsorbit.in and skillsorbit.in
+      maxAge: 15 * 60 * 1000, // 15 minutes
+      ...(process.env.NODE_ENV === "production"
+        ? { domain: ".skillsorbit.in" }
+        : {}), // localhost me domain set mat karo
     });
 
     res.clearCookie("refreshToken", {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: process.env.NODE_ENV === "production" ? "None" : "Lax",
-      domain: ".skillsorbit.in", // allows cookie for both api.skillsorbit.in and skillsorbit.in
+      maxAge: 15 * 60 * 1000, // 15 minutes
+      ...(process.env.NODE_ENV === "production"
+        ? { domain: ".skillsorbit.in" }
+        : {}), // localhost me domain set mat karo
     });
     res.json({
       message: "Logged out successfully",
@@ -211,7 +219,10 @@ const register = async (req, res) => {
           httpOnly: true,
           secure: process.env.NODE_ENV === "production",
           sameSite: process.env.NODE_ENV === "production" ? "None" : "Lax",
-          domain: ".skillsorbit.in", // allows cookie for both api.skillsorbit.in and skillsorbit.in
+          maxAge: 15 * 60 * 1000, // 15 minutes
+          ...(process.env.NODE_ENV === "production"
+            ? { domain: ".skillsorbit.in" }
+            : {}), // localhost me domain set mat karo
         });
 
         // Generate new session token

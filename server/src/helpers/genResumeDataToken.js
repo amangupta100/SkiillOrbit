@@ -24,11 +24,13 @@ const genResumeDataToken = (req, res) => {
 
   // 4. Set cookie and send response
   res.cookie("rDV", token, {
-    httpOnly: false,
+    httpOnly: true,
     secure: process.env.NODE_ENV === "production",
     sameSite: process.env.NODE_ENV === "production" ? "None" : "Lax",
-    maxAge: 60 * 60 * 1000, // 1 hour
-    domain: ".skillsorbit.in", // allows cookie for both api.skillsorbit.in and skillsorbit.in
+    maxAge: 15 * 60 * 1000, // 15 minutes
+    ...(process.env.NODE_ENV === "production"
+      ? { domain: ".skillsorbit.in" }
+      : {}), // localhost me domain set mat karo
   });
   res.json({ success: true, message: "Set successfully" });
 };

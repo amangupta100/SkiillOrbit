@@ -133,11 +133,13 @@ const genTest = async (req, res) => {
 
 const testSubmit = async (req, res) => {
   res.clearCookie("td", {
-    httpOnly: true, // Must match original cookie settings
+    httpOnly: true,
     secure: process.env.NODE_ENV === "production",
     sameSite: process.env.NODE_ENV === "production" ? "None" : "Lax",
-    maxAge: 4 * 60 * 60 * 1000, // cookie life matches token
-    domain: ".skillsorbit.in", // allows cookie for both api.skillsorbit.in and skillsorbit.in
+    maxAge: 15 * 60 * 1000, // 15 minutes
+    ...(process.env.NODE_ENV === "production"
+      ? { domain: ".skillsorbit.in" }
+      : {}), // localhost me domain set mat karo
   });
 
   res.json({ success: true, message: "Test Submitted Successfully" });

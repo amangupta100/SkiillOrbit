@@ -30,11 +30,13 @@ const register = async (req, res) => {
           await user.save();
 
           res.cookie("profileSetupPending", "true", {
-            httpOnly: true, // can be read by frontend/middleware
+            httpOnly: true,
             secure: process.env.NODE_ENV === "production",
             sameSite: process.env.NODE_ENV === "production" ? "None" : "Lax",
-            maxAge: 60 * 60 * 1000, // 1 hour
-            domain: ".skillsorbit.in", // allows cookie for both api.skillsorbit.in and skillsorbit.in
+            maxAge: 15 * 60 * 1000, // 15 minutes
+            ...(process.env.NODE_ENV === "production"
+              ? { domain: ".skillsorbit.in" }
+              : {}), // localhost me domain set mat karo
           });
 
           // Access Token — valid for 15 minutes
@@ -130,8 +132,24 @@ const logout = async (req, res) => {
     }
 
     // Clear cookies
-    res.clearCookie("accessToken");
-    res.clearCookie("refreshToken");
+    res.clearCookie("accessToken", {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: process.env.NODE_ENV === "production" ? "None" : "Lax",
+      maxAge: 15 * 60 * 1000, // 15 minutes
+      ...(process.env.NODE_ENV === "production"
+        ? { domain: ".skillsorbit.in" }
+        : {}), // localhost me domain set mat karo
+    });
+    res.clearCookie("refreshToken", {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: process.env.NODE_ENV === "production" ? "None" : "Lax",
+      maxAge: 15 * 60 * 1000, // 15 minutes
+      ...(process.env.NODE_ENV === "production"
+        ? { domain: ".skillsorbit.in" }
+        : {}), // localhost me domain set mat karo
+    });
 
     res.json({ success: true, message: "Logged out successfully" });
   } catch (err) {
@@ -150,11 +168,13 @@ const profileSetupEnd = async (req, res) => {
     await checkUser.updateLastLogin();
     await checkUser.save();
     res.clearCookie("profileSetupPending", {
-      httpOnly: true, // Must match original cookie settings
+      httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: process.env.NODE_ENV === "production" ? "None" : "Lax",
-      path: "/", // Important to specify path
-      domain: ".skillsorbit.in", // allows cookie for both api.skillsorbit.in and skillsorbit.in
+      maxAge: 15 * 60 * 1000, // 15 minutes
+      ...(process.env.NODE_ENV === "production"
+        ? { domain: ".skillsorbit.in" }
+        : {}), // localhost me domain set mat karo
     });
 
     res.json({
@@ -171,19 +191,23 @@ const profileSetupEnd = async (req, res) => {
 
 const clearAccRefCook = async (req, res) => {
   res.clearCookie("accessToken", {
-    httpOnly: true, // Must match original cookie settings
+    httpOnly: true,
     secure: process.env.NODE_ENV === "production",
     sameSite: process.env.NODE_ENV === "production" ? "None" : "Lax",
-    path: "/", // Important to specify path
-    domain: ".skillsorbit.in", // allows cookie for both api.skillsorbit.in and skillsorbit.in
+    maxAge: 15 * 60 * 1000, // 15 minutes
+    ...(process.env.NODE_ENV === "production"
+      ? { domain: ".skillsorbit.in" }
+      : {}), // localhost me domain set mat karo
   });
 
   res.clearCookie("refreshToken", {
-    httpOnly: true, // Must match original cookie settings
+    httpOnly: true,
     secure: process.env.NODE_ENV === "production",
     sameSite: process.env.NODE_ENV === "production" ? "None" : "Lax",
-    path: "/", // Important to specify path
-    domain: ".skillsorbit.in", // allows cookie for both api.skillsorbit.in and skillsorbit.in
+    maxAge: 15 * 60 * 1000, // 15 minutes
+    ...(process.env.NODE_ENV === "production"
+      ? { domain: ".skillsorbit.in" }
+      : {}), // localhost me domain set mat karo
   });
 
   res.json({

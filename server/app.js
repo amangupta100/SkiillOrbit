@@ -58,6 +58,10 @@ app.use(
   require("./src/routes/user/JobSkillDataRoute")
 );
 
+app.use(
+  "/api/common/getPersonDet/",
+  require("./src/routes/common/getPersonDet")
+);
 app.use("/api/common/auth/", require("./src/routes/common/refreshAuthToken"));
 app.use("/api/job-seeker/", require("./src/routes/user/streakRoutes"));
 app.use("/api/job-seeker/opportunity", require("./src/routes/user/jobRoutes"));

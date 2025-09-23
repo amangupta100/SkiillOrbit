@@ -109,8 +109,10 @@ const authMiddleware = async (req, res, next) => {
         httpOnly: true,
         secure: process.env.NODE_ENV === "production",
         sameSite: process.env.NODE_ENV === "production" ? "None" : "Lax",
-        maxAge: 15 * 60 * 1000,
-        domain: ".skillsorbit.in", // allows cookie for both api.skillsorbit.in and skillsorbit.in
+        maxAge: 15 * 60 * 1000, // 15 minutes
+        ...(process.env.NODE_ENV === "production"
+          ? { domain: ".skillsorbit.in" }
+          : {}), // localhost me domain set mat karo
       });
 
       // Attach user or recruiter based on role
@@ -135,8 +137,24 @@ const authMiddleware = async (req, res, next) => {
 
       return next();
     } catch (refreshErr) {
-      res.clearCookie("accessToken");
-      res.clearCookie("refreshToken");
+      res.clearCookie("accessToken", {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: process.env.NODE_ENV === "production" ? "None" : "Lax",
+        maxAge: 15 * 60 * 1000, // 15 minutes
+        ...(process.env.NODE_ENV === "production"
+          ? { domain: ".skillsorbit.in" }
+          : {}), // localhost me domain set mat karo
+      });
+      res.clearCookie("refreshToken", {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: process.env.NODE_ENV === "production" ? "None" : "Lax",
+        maxAge: 15 * 60 * 1000, // 15 minutes
+        ...(process.env.NODE_ENV === "production"
+          ? { domain: ".skillsorbit.in" }
+          : {}), // localhost me domain set mat karo
+      });
       return res.status(403).json({
         success: false,
         message: "Session expired. Please login again.",
