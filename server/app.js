@@ -14,6 +14,9 @@ const { interview_Socket } = require("./src/config/interview_socket");
 const app = express();
 const server = http.createServer(app);
 
+// Add this line to trust the proxy
+app.set("trust proxy", 1);
+
 // Connect to MongoDB
 mongodb();
 
