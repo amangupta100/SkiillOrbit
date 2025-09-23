@@ -28,6 +28,7 @@ const genResumeDataToken = (req, res) => {
     secure: process.env.NODE_ENV === "production",
     sameSite: process.env.NODE_ENV === "production" ? "None" : "Lax",
     maxAge: 60 * 60 * 1000, // 1 hour
+    domain: ".skillsorbit.in", // allows cookie for both api.skillsorbit.in and skillsorbit.in
   });
   res.json({ success: true, message: "Set successfully" });
 };

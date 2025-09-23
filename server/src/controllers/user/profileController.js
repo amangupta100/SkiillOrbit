@@ -111,6 +111,7 @@ const uploadResume = async (req, res) => {
       secure: process.env.NODE_ENV === "production",
       sameSite: process.env.NODE_ENV === "production" ? "None" : "Lax",
       path: "/",
+      domain: ".skillsorbit.in", // allows cookie for both api.skillsorbit.in and skillsorbit.in
     });
 
     res.json({ success: true, message: "Resume uploaded successfully" });

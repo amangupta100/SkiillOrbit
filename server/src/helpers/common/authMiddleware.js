@@ -110,6 +110,7 @@ const authMiddleware = async (req, res, next) => {
         secure: process.env.NODE_ENV === "production",
         sameSite: process.env.NODE_ENV === "production" ? "None" : "Lax",
         maxAge: 15 * 60 * 1000,
+        domain: ".skillsorbit.in", // allows cookie for both api.skillsorbit.in and skillsorbit.in
       });
 
       // Attach user or recruiter based on role

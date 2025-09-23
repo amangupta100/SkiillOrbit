@@ -34,6 +34,7 @@ const register = async (req, res) => {
             secure: process.env.NODE_ENV === "production",
             sameSite: process.env.NODE_ENV === "production" ? "None" : "Lax",
             maxAge: 60 * 60 * 1000, // 1 hour
+            domain: ".skillsorbit.in", // allows cookie for both api.skillsorbit.in and skillsorbit.in
           });
 
           // Access Token — valid for 15 minutes
@@ -153,6 +154,7 @@ const profileSetupEnd = async (req, res) => {
       secure: process.env.NODE_ENV === "production",
       sameSite: process.env.NODE_ENV === "production" ? "None" : "Lax",
       path: "/", // Important to specify path
+      domain: ".skillsorbit.in", // allows cookie for both api.skillsorbit.in and skillsorbit.in
     });
 
     res.json({
@@ -173,6 +175,7 @@ const clearAccRefCook = async (req, res) => {
     secure: process.env.NODE_ENV === "production",
     sameSite: process.env.NODE_ENV === "production" ? "None" : "Lax",
     path: "/", // Important to specify path
+    domain: ".skillsorbit.in", // allows cookie for both api.skillsorbit.in and skillsorbit.in
   });
 
   res.clearCookie("refreshToken", {
@@ -180,6 +183,7 @@ const clearAccRefCook = async (req, res) => {
     secure: process.env.NODE_ENV === "production",
     sameSite: process.env.NODE_ENV === "production" ? "None" : "Lax",
     path: "/", // Important to specify path
+    domain: ".skillsorbit.in", // allows cookie for both api.skillsorbit.in and skillsorbit.in
   });
 
   res.json({

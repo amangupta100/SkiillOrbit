@@ -22,6 +22,7 @@ const genTestToken = (req, res) => {
     secure: process.env.NODE_ENV === "production",
     sameSite: process.env.NODE_ENV === "production" ? "None" : "Lax",
     maxAge: 4 * 60 * 60 * 1000, // cookie life matches token
+    domain: ".skillsorbit.in", // allows cookie for both api.skillsorbit.in and skillsorbit.in
   });
 
   res.status(200).json({
