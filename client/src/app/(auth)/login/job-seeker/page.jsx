@@ -49,14 +49,19 @@ const page = () => {
 
       if (succ) {
         toast.success(message);
+
         setAuth({
           email: response.data.user.email,
           role: response.data.user.role,
           id: response.data.user.id,
           name: response.data.user.name,
         });
-        router.push("/userDashboard");
-        router.refresh();
+
+        // ✅ Delay navigation (e.g., 1.5s)
+        setTimeout(() => {
+          router.push("/userDashboard");
+          router.refresh();
+        }, 600);
       } else {
         toast.error(message);
       }

@@ -49,7 +49,10 @@ export default function useRoomConnection({
           localVideoRef.current.srcObject = stream;
         }
 
-        socketRef.current = io("http://localhost:5000/interview", {
+        const backendSocketURL =
+          process.env.NEXT_PUBLIC_SOCKET_URL + "/interview";
+
+        socketRef.current = io(backendSocketURL, {
           withCredentials: true,
         });
 
