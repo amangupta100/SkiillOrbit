@@ -14,8 +14,8 @@ const genAccessToken = (user, res) => {
   );
   res.cookie("accessToken", accessToken, {
     httpOnly: true,
-    secure: false, // true in production (HTTPS)
-    sameSite: "none",
+    secure: process.env.NODE_ENV === "production",
+    sameSite: process.env.NODE_ENV === "production" ? "None" : "Lax",
     maxAge: 15 * 60 * 1000, // 15 minutes,
   });
 };
@@ -34,8 +34,8 @@ const genRefreshToken = (user, res) => {
   );
   res.cookie("refreshToken", refreshToken, {
     httpOnly: true,
-    secure: false,
-    sameSite: "none",
+    secure: process.env.NODE_ENV === "production",
+    sameSite: process.env.NODE_ENV === "production" ? "None" : "Lax",
     maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days,
   });
 };

@@ -31,8 +31,8 @@ const register = async (req, res) => {
 
           res.cookie("profileSetupPending", "true", {
             httpOnly: true, // can be read by frontend/middleware
-            secure: true,
-            sameSite: "none",
+            secure: process.env.NODE_ENV === "production",
+            sameSite: process.env.NODE_ENV === "production" ? "None" : "Lax",
             maxAge: 60 * 60 * 1000, // 1 hour
           });
 
@@ -150,8 +150,8 @@ const profileSetupEnd = async (req, res) => {
     await checkUser.save();
     res.clearCookie("profileSetupPending", {
       httpOnly: true, // Must match original cookie settings
-      secure: true, // Must match original
-      sameSite: "none",
+      secure: process.env.NODE_ENV === "production",
+      sameSite: process.env.NODE_ENV === "production" ? "None" : "Lax",
       path: "/", // Important to specify path
     });
 
@@ -170,15 +170,15 @@ const profileSetupEnd = async (req, res) => {
 const clearAccRefCook = async (req, res) => {
   res.clearCookie("accessToken", {
     httpOnly: true, // Must match original cookie settings
-    secure: true, // Must match original
-    sameSite: "none",
+    secure: process.env.NODE_ENV === "production",
+    sameSite: process.env.NODE_ENV === "production" ? "None" : "Lax",
     path: "/", // Important to specify path
   });
 
   res.clearCookie("refreshToken", {
     httpOnly: true, // Must match original cookie settings
-    secure: true, // Must match original
-    sameSite: "none",
+    secure: process.env.NODE_ENV === "production",
+    sameSite: process.env.NODE_ENV === "production" ? "None" : "Lax",
     path: "/", // Important to specify path
   });
 

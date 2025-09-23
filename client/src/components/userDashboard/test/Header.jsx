@@ -63,8 +63,8 @@ export default function AppHeader({ questions = 0, isInstructionShown }) {
       const endTime = Date.now() + totalTime * 1000;
       Cookies.set("tt", JSON.stringify({ endTime }), {
         expires: new Date(endTime),
-        secure: true,
-        sameSite: "none",
+        secure: process.env.NODE_ENV === "production",
+        sameSite: process.env.NODE_ENV === "production" ? "None" : "Lax",
       });
       setRemainingTime(totalTime);
       setShowTimer(true);

@@ -108,8 +108,8 @@ const uploadResume = async (req, res) => {
 
     res.clearCookie("profileSetupPending", {
       httpOnly: true,
-      secure: true,
-      sameSite: "none",
+      secure: process.env.NODE_ENV === "production",
+      sameSite: process.env.NODE_ENV === "production" ? "None" : "Lax",
       path: "/",
     });
 

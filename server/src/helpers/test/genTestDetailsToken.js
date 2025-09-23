@@ -19,8 +19,8 @@ const genTestToken = (req, res) => {
 
   res.cookie("td", token, {
     httpOnly: true,
-    secure: true,
-    sameSite: "none",
+    secure: process.env.NODE_ENV === "production",
+    sameSite: process.env.NODE_ENV === "production" ? "None" : "Lax",
     maxAge: 4 * 60 * 60 * 1000, // cookie life matches token
   });
 

@@ -55,7 +55,7 @@ const page = () => {
           id: response.data.user.id,
           name: response.data.user.name,
         });
-        router.replace("/userDashboard");
+        router.push("/userDashboard");
       } else {
         toast.error(message);
       }

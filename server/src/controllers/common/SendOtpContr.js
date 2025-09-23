@@ -12,7 +12,7 @@ const generateOTP = () => {
 let transport = nodemailer.createTransport({
   host: "smtp.gmail.com",
   port: 587,
-  secure: true, // true for port 465, false for other ports
+  secure: process.env.NODE_ENV === "production", // true for port 465, false for other ports
   auth: {
     user: "skillorbit01@gmail.com",
     pass: "kyst ovep ombh toph",

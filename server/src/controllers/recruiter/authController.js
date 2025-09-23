@@ -10,8 +10,8 @@ const {
 const setProfilePendingCookie = async (req, res) => {
   res.cookie("profileSetupPending", "true", {
     httpOnly: true, // can be read by frontend/middleware
-    secure: true,
-    sameSite: "none",
+    secure: process.env.NODE_ENV === "production",
+    sameSite: process.env.NODE_ENV === "production" ? "None" : "Lax",
     maxAge: 60 * 60 * 1000, // 1 hour
   });
   res.json({ success: "true", message: "Cookie setup successful" });
@@ -100,14 +100,14 @@ const logout = async (req, res) => {
 
     res.clearCookie("accessToken", {
       httpOnly: true,
-      secure: true, // set to true in production
-      sameSite: "none",
+      secure: process.env.NODE_ENV === "production",
+      sameSite: process.env.NODE_ENV === "production" ? "None" : "Lax",
     });
 
     res.clearCookie("refreshToken", {
       httpOnly: true,
-      secure: true, // set to true in production
-      sameSite: "none",
+      secure: process.env.NODE_ENV === "production",
+      sameSite: process.env.NODE_ENV === "production" ? "None" : "Lax",
     });
     res.json({
       message: "Logged out successfully",
@@ -206,8 +206,8 @@ const register = async (req, res) => {
 
         res.clearCookie("profileSetupPending", {
           httpOnly: true,
-          secure: true,
-          sameSite: "none",
+          secure: process.env.NODE_ENV === "production",
+          sameSite: process.env.NODE_ENV === "production" ? "None" : "Lax",
         });
 
         // Generate new session token
