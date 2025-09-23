@@ -56,6 +56,7 @@ const page = () => {
           name: response.data.user.name,
         });
         router.push("/userDashboard");
+        router.refresh();
       } else {
         toast.error(message);
       }
