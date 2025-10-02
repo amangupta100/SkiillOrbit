@@ -18,7 +18,7 @@ export function DashboardSkeleton() {
   return (
     <div className="min-h-screen flex w-full bg-gray-50">
       {/* Sidebar - Exact replica of your screenshot */}
-      <div className="w-[240px] bg-white border-r border-gray-200 p-6">
+      <div className="w-[240px] md:block hidden bg-white border-r border-gray-200 p-6">
         <div className="space-y-6">
           {/* Skill section header */}
           <div className="h-5 w-16 bg-gray-200 rounded-sm mb-4"></div>

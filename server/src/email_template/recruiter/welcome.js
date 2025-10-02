@@ -53,7 +53,7 @@ const greetRecruiter = `
     <div class="container">
       <div class="header">
         <!-- ✅ Updated logo URL -->
-        <img src="https://res.cloudinary.com/dt9codbw2/image/upload/v1757310129/logo_o6y0ba.png" alt="SkillOrbit Logo" />
+        <img src="https://res.cloudinary.com/ddad6pdhx/image/upload/v1758799527/logo_qzuuth.png" alt="SkillOrbit Logo" />
       </div>
       <div class="content">
         <p>Hi [Recruiter Name],</p>
@@ -66,7 +66,7 @@ const greetRecruiter = `
         <ul>
           <li>✅ Post jobs with required skills</li>
           <li>🎯 Receive only test-qualified applicants</li>
-          <li>📈 Track candidate scores and interview results</li>
+          <li>📈 Track candidate scores and schedule interviews using built-in secured interview environment</li>
         </ul>
         <p>
           We're excited to help you find top talent with less effort.

@@ -39,6 +39,10 @@ app.get("/", (req, res) => res.send("Hello Backend"));
 // Auth
 app.use("/api/auth", require("./src/routes/user/authRoutes"));
 app.use("/api/sendMail", require("./src/routes/user/sendEmailRoute"));
+app.use(
+  "/api/recruiter/sendMail",
+  require("./src/routes/recruiter/sendMailRoute")
+);
 app.use("/api", require("./src/routes/common/SendotpRoute"));
 
 // Recruiter

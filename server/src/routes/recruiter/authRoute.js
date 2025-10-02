@@ -8,6 +8,7 @@ const router = require("express").Router();
 const authMiddleware = require("../../helpers/common/authMiddleware");
 
 router.post("/profilePendingCookie", setProfilePendingCookie);
+
 router.get("/check-auth", authMiddleware, (req, res) => {
   const recruiter = req.recruiter;
   res.status(200).json({
@@ -18,7 +19,6 @@ router.get("/check-auth", authMiddleware, (req, res) => {
 });
 
 router.post("/register", register);
-
 router.post("/login", recruiterLogin);
 router.post("/logout", authMiddleware, logout);
 

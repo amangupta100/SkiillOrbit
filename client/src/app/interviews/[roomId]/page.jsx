@@ -9,6 +9,7 @@ import NavigationGuard from "@/lib/common/NavigationGuard";
 import { toast } from "sonner";
 import { FaCrown } from "react-icons/fa";
 import { IoInformation } from "react-icons/io5";
+import { IoIosNotificationsOutline } from "react-icons/io";
 
 // 🔹 new imports
 import ParticipantCard from "@/components/recruiterDashboard/Interview/session/ParticipantCard";
@@ -35,6 +36,7 @@ export default function Room({ params }) {
   const [participantSideBar, setPartSidebar] = useState(false);
   const [screenLoading, setScreenLoading] = useState(false);
   const [showMessSidebar, setshowMessSidebar] = useState(false);
+  const [notif, setNotf] = useState(false);
 
   // refs
   const audioRef = useRef(null);
@@ -46,32 +48,15 @@ export default function Room({ params }) {
   }, []);
 
   useEffect(() => {
-    const data = JSON.parse(localStorage.getItem("data") || "null");
+    const data = JSON.parse(sessionStorage.getItem("data") || "null");
     if (!data?.name || !data?.role) {
       toast.error("Unauthorized. Please log in.");
-      router.replace("/login");
+
       return;
     }
     setUserName(data.name);
     setRole(data.role);
-  }, [router]);
-
-  // 🔊 play sound on room enter
-  useEffect(() => {
-    if (audioRef.current) {
-      audioRef.current.volume = 0.4; // below normal volume
-      audioRef.current.play().catch(() => {
-        console.warn("Autoplay blocked, will retry on user action");
-      });
-    }
   }, []);
-
-  const playEnterSound = () => {
-    if (audioRef.current) {
-      audioRef.current.volume = 0.4;
-      audioRef.current.play().catch(() => {});
-    }
-  };
 
   const handleCopy = async () => {
     try {
@@ -94,7 +79,16 @@ export default function Room({ params }) {
     localStreamRef,
     socketRef,
     webrtcRef,
-  } = useRoomConnection({ roomId, userName, role, router, isMuted, cameraOn });
+    monitorLogs,
+  } = useRoomConnection({ roomId, userName, router, isMuted, cameraOn });
+
+  const exitKioskMode = () => {
+    if (document.fullscreenElement) {
+      document.exitFullscreen().catch((err) => {
+        console.error("Failed to exit fullscreen:", err);
+      });
+    }
+  };
 
   const toggleScreenShare = async () => {
     if (!webrtcRef.current || !socketRef.current) return;
@@ -130,27 +124,12 @@ export default function Room({ params }) {
     }
   };
 
-  // 🔹 renderVideoCards using ParticipantCard
+  // 🔹 Render Video Cards Function
   const renderVideoCards = () => {
     const myId = socketRef.current?.id;
 
     return (participants || []).map((p) => {
       const isLocal = p.socketId === myId;
-
-      if (isLocal && isScreenSharing) {
-        return (
-          <ParticipantCard
-            key={p.socketId}
-            isLocal={true}
-            participant={{ ...p, cameraOn: true }}
-            localStreamRef={localStreamRef}
-            remoteStream={remoteStreamsMap[p.socketId]}
-            localVideoRef={localVideoRef}
-            isScreenSharing={true}
-            screenLoading={screenLoading}
-          />
-        );
-      }
 
       const participantWithFlags = {
         ...p,
@@ -166,6 +145,32 @@ export default function Room({ params }) {
           : false,
       };
 
+      // Local screen sharing case
+      if (isLocal && isScreenSharing) {
+        return (
+          <ParticipantCard
+            key={p.socketId}
+            participant={participantWithFlags}
+            localStreamRef={localStreamRef}
+            remoteStream={remoteStreamsMap[p.socketId]}
+            localVideoRef={localVideoRef}
+            isScreenSharing={true}
+            screenLoading={screenLoading}
+            onFullScreen={(socketId) => {
+              console.log("Full screen clicked for", socketId);
+            }}
+            socketRef={socketRef} // 👈 pass socketRef here
+            socketId={socketRef.current?.id}
+            onMonitor={(socketId) => {
+              console.log("Monitor clicked for", socketId);
+            }}
+            isLocal={isLocal}
+            roomId={roomId}
+          />
+        );
+      }
+
+      // Normal case
       return (
         <ParticipantCard
           key={p.socketId}
@@ -174,14 +179,37 @@ export default function Room({ params }) {
           localStreamRef={localStreamRef}
           remoteStream={remoteStreamsMap[p.socketId]}
           localVideoRef={localVideoRef}
+          isHost={role === "recruiter"} // 👈 pass role as host flag
+          onFullScreen={(socketId) => {
+            console.log("Full screen clicked for", socketId);
+          }}
+          socketRef={socketRef} // 👈 pass socketRef here
+          onMonitor={(socketId) => {
+            console.log("Monitor clicked for", socketId);
+          }}
+          socketId={socketRef.current?.id}
+          roomId={roomId}
         />
       );
     });
   };
 
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const kiosk = params.get("kiosk") === "true";
+
+    if (kiosk) {
+      // Trigger fullscreen immediately after mount
+      if (document.documentElement.requestFullscreen) {
+        document.documentElement.requestFullscreen().catch((err) => {
+          console.error("Failed to enter fullscreen:", err);
+        });
+      }
+    }
+  }, []);
+
   // 🔹 controls
   const toggleMute = () => {
-    playEnterSound(); // ensure sound plays after first user interaction
     setIsMuted((prev) => {
       const newMuted = !prev;
       if (localStreamRef.current) {
@@ -202,7 +230,6 @@ export default function Room({ params }) {
   };
 
   const toggleCamera = () => {
-    playEnterSound(); // also retry sound here
     setCameraOn((prev) => {
       const newCamera = !prev;
       if (localStreamRef.current) {
@@ -238,7 +265,7 @@ export default function Room({ params }) {
       <audio ref={audioRef} src="/interview_enter.mp3" preload="auto" />
 
       {/* header */}
-      <div className="h-12 flex items-center justify-between px-4 border-b-2 border-zinc-300">
+      <div className="h-12 relative flex items-center justify-between px-4 border-b-2 border-zinc-300">
         <div className="flex gap-2 items-center justify-center">
           <span className="text-sm font-mono">{time.toLocaleTimeString()}</span>
           <h1 className="text-lg">|</h1>
@@ -256,6 +283,17 @@ export default function Room({ params }) {
         </div>
 
         <div className="flex items-center gap-2">
+          {/* 🔹 Host notification */}
+          {participants?.find((p) => p.isHost) && (
+            <div className="relative">
+              <IoIosNotificationsOutline
+                onClick={() => setNotf(!notif)}
+                className="w-6 h-6 text-blue-500"
+              />
+              {/* <div className="w-3 h-3 bg-red-500 rounded-full absolute -top-1 -right-1 animate-pulse" /> */}
+            </div>
+          )}
+
           <IoInformation
             onClick={() => setShowSidebar((s) => !s)}
             className="bg-gray-200 border border-zinc-300 w-8 h-8 text-black hover:bg-gray-500/40 rounded-lg"
@@ -263,13 +301,26 @@ export default function Room({ params }) {
           <Button
             size="icon"
             variant="destructive"
+            className="cursor-pointer"
             onClick={() => {
+              // exit kiosk mode first
+              exitKioskMode();
+
+              // then redirect
               router.replace("/interviews");
             }}
           >
             <PhoneOff />
           </Button>
         </div>
+
+        {notif && (
+          <Notifications
+            notiBox={notif}
+            logs={monitorLogs}
+            setnotBox={setNotf}
+          />
+        )}
       </div>
 
       {/* main */}
@@ -284,6 +335,7 @@ export default function Room({ params }) {
             socketRef={socketRef}
             roomId={roomId}
             userName={userName}
+            socketId={socketRef.current?.id}
           />
         )}
 
@@ -382,3 +434,52 @@ export default function Room({ params }) {
     </div>
   );
 }
+
+const Notifications = ({ logs, notiBox, setnotBox }) => {
+  function formatTime(isoString) {
+    if (!isoString) return "";
+    const date = new Date(isoString);
+
+    let hours = date.getHours();
+    const minutes = String(date.getMinutes()).padStart(2, "0");
+    const seconds = String(date.getSeconds()).padStart(2, "0");
+
+    const ampm = hours >= 12 ? "PM" : "AM";
+    hours = hours % 12;
+    hours = hours ? hours : 12; // the hour '0' should be '12'
+
+    return `${String(hours).padStart(2, "0")}:${minutes}:${seconds} ${ampm}`;
+  }
+
+  return (
+    <div
+      className={`${
+        logs.length === 0 ? "flex justify-center items-center" : ""
+      } absolute top-16 right-5 w-80 h-80 bg-white border border-gray-300 rounded-lg shadow-lg z-50 p-1`}
+    >
+      {logs.length === 0 ? (
+        <div className="flex flex-col items-center justify-center">
+          <h1 className="text-center">No notifications yet. </h1>
+          <h1 className="text-center text-[13px] text-gray-400 max-w-[75%] ">
+            Want to monitor anyone ! Just enable it by clicking on three-dots
+            and clicking on monitor activities
+          </h1>
+        </div>
+      ) : (
+        <>
+          {logs.map((elem) => {
+            return (
+              <div
+                key={elem}
+                className="p-3 border-[1.6px] rounded-lg border-gray-200"
+              >
+                <p className="text-sm text-gray-700">{elem?.event}</p>
+                <p> {formatTime(elem?.time)} </p>
+              </div>
+            );
+          })}
+        </>
+      )}
+    </div>
+  );
+};

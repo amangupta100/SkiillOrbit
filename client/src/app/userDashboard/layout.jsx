@@ -65,7 +65,7 @@ export default function DashboardLayout({ children }) {
       setInitialCheckComplete(true);
     };
     verifyAuth();
-  }, [checkAuth, router]);
+  }, [router]);
 
   // Show loading skelton until initial checks complete
   if (!initialCheckComplete || isReconnecting) {

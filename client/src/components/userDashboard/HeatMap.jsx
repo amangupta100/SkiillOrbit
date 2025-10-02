@@ -74,7 +74,7 @@ export default function ActivityHeatmap() {
             {
               text: function (date, value) {
                 return (
-                  (value ? value : "No") +
+                  (value ? "some" : "No") +
                   " activities on " +
                   format(date, "dd MMM, yyyy")
                 );

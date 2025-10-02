@@ -60,7 +60,7 @@ const resultTemplate = (candidateName, score, status) => `
   <body>
     <div class="container">
       <div class="header">
-        <img src="https://res.cloudinary.com/dt9codbw2/image/upload/v1757310129/logo_o6y0ba.png" alt="SkillOrbit Logo" />
+        <img src="https://res.cloudinary.com/ddad6pdhx/image/upload/v1758799527/logo_qzuuth.png" alt="SkillOrbit Logo" />
         <h1>Your Test Result is Ready 🎉</h1>
       </div>
       <div class="content">

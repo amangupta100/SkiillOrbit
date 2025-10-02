@@ -4,163 +4,62 @@ const Recruiter = require("../../models/RecruiterModel");
 
 const authMiddleware = async (req, res, next) => {
   const accessToken = req.cookies.accessToken;
-  const refreshToken = req.cookies.refreshToken;
 
-  if (!refreshToken) {
-    return res.status(401).json({
-      success: false,
-      message: "Unauthorized Access or Session Expired",
-    });
+  if (!accessToken) {
+    return res.status(401).json({ success: false, message: "No access token" });
   }
 
   try {
+    // verify access token
     const decoded = jwt.verify(accessToken, process.env.ACCESS_SECRET_KEY);
-
-    const [user, recruiter] = await Promise.all([
-      User.findById(decoded.id)
-        .select("_id name role image desiredRole desiredDomain")
-        .lean(),
-      Recruiter.findById(decoded.id)
-        .select("_id name role image company")
-        .lean(),
-    ]);
-
-    const authUser = user || recruiter;
-
-    if (!authUser) {
-      return res
-        .status(401)
-        .json({ success: false, message: "Unauthorized access" });
-    }
-
-    // Attach user or recruiter based on role
-    if (authUser.role === "job-seeker") {
-      req.user = {
-        id: authUser._id,
-        name: authUser.name,
-        role: authUser.role,
-        image: authUser.image,
-        desiredRole: authUser.desiredRole,
-        domain: authUser.desiredDomain,
-      };
-    } else {
-      req.recruiter = {
-        id: authUser._id,
-        name: authUser.name,
-        role: authUser.role,
-        image: authUser.image,
-        ...(recruiter && { company: recruiter.company }),
-      };
-    }
-
+    await attachUser(decoded.id, req);
     return next();
-  } catch (accessErr) {
-    if (!refreshToken) {
+  } catch (err) {
+    console.log("Auth Middleware Error:", err.message);
+
+    if (err.name === "TokenExpiredError" || err.message === "jwt expired") {
+      // 👇 important: don't refresh here, just tell client to refresh
       return res
         .status(401)
-        .json({ success: false, message: "Session expired" });
+        .json({ success: false, message: "Access token expired" });
     }
 
-    try {
-      const decodedRefresh = jwt.verify(
-        refreshToken,
-        process.env.REFRESH_SECRET_KEY
-      );
-
-      const [user, recruiter] = await Promise.all([
-        User.findById(decodedRefresh.id)
-          .select("_id name role image desiredRole desiredDomain")
-          .lean(),
-        Recruiter.findById(decodedRefresh.id)
-          .select("_id name role image company")
-          .lean(),
-      ]);
-
-      const authUser = user || recruiter;
-
-      if (!authUser) {
-        return res
-          .status(401)
-          .json({ success: false, message: "Invalid account" });
-      }
-
-      const tokenPayload =
-        authUser.role === "job-seeker"
-          ? {
-              id: authUser._id,
-              role: authUser.role,
-              name: authUser.name,
-              desiredRole: authUser.desiredRole,
-              domain: authUser.desiredDomain,
-            }
-          : {
-              id: authUser._id,
-              role: authUser.role,
-              name: authUser.name,
-            };
-
-      const newAccessToken = jwt.sign(
-        tokenPayload,
-        process.env.ACCESS_SECRET_KEY,
-        { expiresIn: "15m" }
-      );
-
-      res.cookie("accessToken", newAccessToken, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === "production",
-        sameSite: process.env.NODE_ENV === "production" ? "None" : "Lax",
-        maxAge: 15 * 60 * 1000, // 15 minutes
-        ...(process.env.NODE_ENV === "production"
-          ? { domain: ".skillsorbit.in" }
-          : {}), // localhost me domain set mat karo
-      });
-
-      // Attach user or recruiter based on role
-      if (authUser.role === "job-seeker") {
-        req.user = {
-          id: authUser._id,
-          name: authUser.name,
-          role: authUser.role,
-          image: authUser.image,
-          desiredRole: authUser.desiredRole,
-          desiredDomain: authUser.desiredDomain,
-        };
-      } else {
-        req.recruiter = {
-          id: authUser._id,
-          name: authUser.name,
-          role: authUser.role,
-          image: authUser.image,
-          ...(recruiter && { company: recruiter.company }),
-        };
-      }
-
-      return next();
-    } catch (refreshErr) {
-      res.clearCookie("accessToken", {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === "production",
-        sameSite: process.env.NODE_ENV === "production" ? "None" : "Lax",
-        maxAge: 15 * 60 * 1000, // 15 minutes
-        ...(process.env.NODE_ENV === "production"
-          ? { domain: ".skillsorbit.in" }
-          : {}), // localhost me domain set mat karo
-      });
-      res.clearCookie("refreshToken", {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === "production",
-        sameSite: process.env.NODE_ENV === "production" ? "None" : "Lax",
-        maxAge: 15 * 60 * 1000, // 15 minutes
-        ...(process.env.NODE_ENV === "production"
-          ? { domain: ".skillsorbit.in" }
-          : {}), // localhost me domain set mat karo
-      });
-      return res.status(403).json({
-        success: false,
-        message: "Session expired. Please login again.",
-      });
-    }
+    return res.status(401).json({ success: false, message: "Invalid token" });
   }
 };
+
+// helper function to attach user/recruiter
+async function attachUser(userId, req) {
+  const [user, recruiter] = await Promise.all([
+    User.findById(userId)
+      .select("_id name role image desiredRole desiredDomain")
+      .lean(),
+    Recruiter.findById(userId).select("_id name role image company").lean(),
+  ]);
+
+  const authUser = user || recruiter;
+  if (!authUser) return null;
+
+  if (authUser.role === "job-seeker") {
+    req.user = {
+      id: authUser._id,
+      name: authUser.name,
+      role: authUser.role,
+      image: authUser.image,
+      desiredRole: authUser.desiredRole,
+      domain: authUser.desiredDomain,
+    };
+  } else {
+    req.recruiter = {
+      id: authUser._id,
+      name: authUser.name,
+      role: authUser.role,
+      image: authUser.image,
+      ...(recruiter && { company: recruiter.companyId }),
+    };
+  }
+
+  return authUser;
+}
 
 module.exports = authMiddleware;

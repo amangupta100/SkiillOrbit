@@ -4,46 +4,48 @@ import { create } from "zustand";
 const useRecruiterAuthStore = create((set) => ({
   isAuthenticated: false,
   recruiter: null,
-  company: null, // Add company field
+  company: null,
 
-  setAuth: (responseData) => set({
-    isAuthenticated: true,
-    recruiter: {
-      id: responseData.recruiter.id,
-      name: responseData.recruiter.name,
-      email: responseData.recruiter.email,
-      // Add other recruiter fields as needed
-    },
-    company: responseData.company ? {
-      id: responseData.company.id,
-      name: responseData.company.name,
-      // Add other company fields as needed
-    } : null
-  }),
+  setAuth: (responseData) =>
+    set({
+      isAuthenticated: true,
+      recruiter: {
+        id: responseData.recruiter.id,
+        name: responseData.recruiter.name,
+        email: responseData.recruiter.email,
+      },
+      company: responseData.company
+        ? {
+            id: responseData.company.id,
+            name: responseData.company.name,
+          }
+        : null,
+    }),
 
-  logout: () => set({
-    isAuthenticated: false,
-    recruiter: null,
-    company: null // Clear company data on logout
-  }),
+  logout: () =>
+    set({
+      isAuthenticated: false,
+      recruiter: null,
+      company: null,
+    }),
 
   checkAuth: async () => {
     try {
-      const response = await API.get('/recruiter/check-auth');
-      set({ 
-        isAuthenticated: true, 
-        recruiter: response.data.recruiter,
-        company: response.data.recruiter.companyId // Set company data from response
-      });
+      const response = await API.get("/recruiter/auth/check-auth");
 
+      set({
+        isAuthenticated: true,
+        recruiter: response.data.recruiter,
+        company: response.data.recruiter?.companyId || null,
+      });
     } catch (error) {
-      set({ 
-        isAuthenticated: false, 
+      set({
+        isAuthenticated: false,
         recruiter: null,
-        company: null // Clear company data on auth failure
+        company: null,
       });
     }
-  }
+  },
 }));
 
 export default useRecruiterAuthStore;

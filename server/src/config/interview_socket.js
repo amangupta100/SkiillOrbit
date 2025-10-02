@@ -166,6 +166,48 @@ function interview_Socket(io) {
       interviewNamespace.to(roomId).emit("new-message", payload);
     });
 
+    socket.on("start-monitor", ({ targetId, roomId }) => {
+      const room = rooms.get(roomId);
+      if (!room) return;
+
+      console.log(targetId, roomId);
+
+      // ✅ only host can request monitoring
+      if (room.host?.socketId === socket.id) {
+        interviewNamespace.to(targetId).emit("enable-monitor", { roomId });
+        console.log(`Monitoring started for ${targetId} in room ${roomId}`);
+      }
+    });
+
+    // 🔹 When a participant emits a monitor-event (tab switch, blur, focus, etc.)
+    socket.on("monitor-event", ({ roomId, socketId, event }) => {
+      const room = rooms.get(roomId);
+      if (!room) {
+        console.warn(`[monitor-event] Room not found: ${roomId}`);
+        return;
+      }
+
+      // ✅ Only forward events to the host of this room
+      if (room.host) {
+        const payload = {
+          socketId,
+          event,
+          time: new Date().toISOString(),
+        };
+
+        interviewNamespace
+          .to(room.host.socketId)
+          .emit("monitor-event", payload);
+
+        console.log(
+          `[monitor-event] Forwarded from participant ${socketId} to host ${room.host.socketId} in room ${roomId}:`,
+          payload
+        );
+      } else {
+        console.warn(`[monitor-event] No host found in room ${roomId}`);
+      }
+    });
+
     socket.on("get-messages", ({ roomId }, cb) => {
       const room = rooms.get(roomId);
       if (!room) return cb && cb({ messages: [] });

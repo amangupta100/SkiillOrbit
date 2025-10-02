@@ -28,7 +28,7 @@ const layout = ({ children }) => {
 
   useEffect(() => {
     checkAuth();
-  }, [router, isAuthenticated, setAuth]);
+  }, [router]);
   return (
     <SidebarProvider>
       <div className="min-h-screen flex w-full bg-gray-50">

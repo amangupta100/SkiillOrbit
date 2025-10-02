@@ -126,12 +126,17 @@ export default function ProfileSetup() {
       const base64String = await fileToBase64(logoFile);
       payload.image = base64String;
 
-      const response = await API.post("/recruiter/register", payload);
+      const response = await API.post("/recruiter/auth/register", payload);
       const { success: succ, message, data } = response.data;
       if (succ) {
         toast.success(message);
 
         window.location.href = "/recruiterDashboard";
+        const greetRec = {
+          email: formData.email,
+          name: formData.name,
+        };
+        await API.post("/recruiter/sendMail/greetRec", greetRec);
         localStorage.clear("RecruiterData");
       } else toast.warning(message);
     } catch (err) {

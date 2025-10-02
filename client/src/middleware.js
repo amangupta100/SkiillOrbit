@@ -48,51 +48,25 @@ export async function middleware(request) {
     }
   }
 
-  // 1. Token verification and refresh logic
-  if (refreshToken && !accessToken) {
-    shouldRefresh = true;
-  } else if (accessToken) {
+  //role get logic
+  if (accessToken && refreshToken) {
     try {
       const { payload } = await jwtVerify(
         accessToken,
         new TextEncoder().encode(process.env.ACCESS_SECRET_KEY)
       );
       role = payload.role;
-    } catch (error) {
-      if (error.code === "ERR_JWT_EXPIRED" && refreshToken) {
-        shouldRefresh = true;
-      }
-    }
-  }
-
-  if (shouldRefresh) {
-    try {
-      const res = await fetch(
-        `${process.env.NEXT_PUBLIC_API_BASE_URL}/common/auth/refreshToken`,
-        {
-          method: "POST",
-          credentials: "include",
-        }
-      );
-
-      if (!res.ok) {
-        response.cookies.delete("accessToken");
-        response.cookies.delete("refreshToken");
-        return NextResponse.redirect(new URL("/login/job-seeker", request.url));
-      }
-
-      const data = await res.json();
-      role = data?.res?.role;
-    } catch (error) {
-      console.error("Refresh token failed:", error);
-      response.cookies.delete("accessToken");
-      response.cookies.delete("refreshToken");
-      return NextResponse.redirect(new URL("/login/job-seeker", request.url));
+    } catch (err) {
+      // ❌ Access token invalid or expired
+      return new NextResponse(JSON.stringify({ error: "Unauthorized" }), {
+        status: 401,
+        headers: { "Content-Type": "application/json" },
+      });
     }
   }
 
   // 3. Block unauthenticated access to protected routes
-  if (!isAuthenticated) {
+  if (!refreshToken && !accessToken) {
     if (pathname.startsWith("/userDashboard")) {
       return NextResponse.redirect(new URL("/login/job-seeker", request.url));
     }
@@ -155,7 +129,7 @@ export async function middleware(request) {
 
   // 6. Redirect authenticated users away from auth pages
   if (
-    role &&
+    refreshToken &&
     (pathname.startsWith("/login") || pathname.startsWith("/register"))
   ) {
     return NextResponse.redirect(

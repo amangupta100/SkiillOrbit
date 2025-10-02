@@ -2,10 +2,14 @@ const mongoose = require("mongoose");
 
 const internshipSchema = new mongoose.Schema(
   {
-    title: {
+    domain: {
       type: String,
-      required: [true, "Internship title is required"],
+      required: [true, "Internship domain is required"],
       trim: true,
+    },
+    role: {
+      type: String,
+      required: [true, "Internship role is required"],
     },
     requiredSkills: {
       type: [String],

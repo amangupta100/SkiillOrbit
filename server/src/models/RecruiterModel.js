@@ -18,6 +18,8 @@ const recruiterSchema = new mongoose.Schema(
       ref: "Company",
       required: true,
     },
+    internships: [{ type: mongoose.Schema.Types.ObjectId, ref: "Internship" }],
+
     jobPosts: [{ type: mongoose.Schema.Types.ObjectId, ref: "Job" }],
     lastLogin: { type: Date, default: null },
     image: {

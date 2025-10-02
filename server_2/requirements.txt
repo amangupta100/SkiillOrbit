@@ -128,7 +128,7 @@ networkx==2.8.8
 nltk==3.9.1
 num2words==0.5.14
 numba==0.60.0
-numpy==1.22.0
+numpy==1.26.4   # stable, compatible with torch 2.8, tf 2.12, scipy 1.11
 oauthlib==3.3.1
 onnxruntime==1.22.1
 opencv-contrib-python==4.11.0.86
@@ -148,7 +148,7 @@ pooch==1.8.2
 preshed==3.0.10
 proglog==0.1.12
 propcache==0.3.2
-protobuf==4.25.8
+protobuf==3.20.*
 psutil==7.0.0
 psycopg2-binary==2.9.10
 py-cpuinfo==9.0.0
@@ -217,7 +217,6 @@ tensorboard-plugin-wit==1.8.1
 tensorflow==2.12.0
 tensorflow-estimator==2.12.0
 tensorflow-io-gcs-filesystem==0.31.0
-tensorflow_cpu==2.20.0
 termcolor==3.1.0
 thinc==8.3.4
 threadpoolctl==3.6.0

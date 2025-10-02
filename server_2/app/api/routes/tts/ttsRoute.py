@@ -20,7 +20,8 @@ router = APIRouter()
 # Config
 # -------------------------------
 ACCESS_SECRET_KEY = os.getenv("ACCESS_SECRET_KEY")
-INTERVIEW_SECRET_KEY = os.getenv("INTERVIEW_SECRET_KEY")
+INTERVIEW_SECRET_KEY = os.getenv("Interview_SECRET_KEY")
+NODE_ENV = os.getenv("NODE_ENV")
 ALGORITHM = "HS256"
 
 if not ACCESS_SECRET_KEY or not INTERVIEW_SECRET_KEY:
@@ -100,10 +101,11 @@ async def create_tts_session(
         key="sessionID",
         value=session_jwt,
         httponly=True,
-        samesite="none",
-        secure=True,  # ✅ enforce HTTPS in production
+        samesite="None" if NODE_ENV == "production" else "Lax",
+        secure=True if NODE_ENV == 'production' else False,  # ✅ enforce HTTPS in production
         path="/",
-        max_age=3600
+        max_age=3600,
+        domain = None if NODE_ENV == "development" else ".skillsorbit.in"
     )
     return response
 

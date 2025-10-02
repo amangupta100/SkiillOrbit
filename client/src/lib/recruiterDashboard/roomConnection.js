@@ -7,7 +7,6 @@ import { createWebRTCManager } from "./webrtc";
 export default function useRoomConnection({
   roomId,
   userName,
-  role,
   router,
   isMuted,
   cameraOn,
@@ -16,6 +15,13 @@ export default function useRoomConnection({
   const [remoteStreamsMap, setRemoteStreamsMap] = useState({});
   const [userCount, setUserCount] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [monitorLogs, setMonitorLogs] = useState([]);
+
+  // 🔑 keep a ref of participants to avoid stale closures
+  const participantsRef = useRef([]);
+  useEffect(() => {
+    participantsRef.current = participants;
+  }, [participants]);
 
   const localVideoRef = useRef(null);
   const localStreamRef = useRef(null);
@@ -40,75 +46,160 @@ export default function useRoomConnection({
     if (!roomId || !userName) return;
     let mounted = true;
 
-    navigator.mediaDevices
-      .getUserMedia({ video: true, audio: true })
-      .then(async (stream) => {
-        if (!mounted) return;
-        localStreamRef.current = stream;
-        if (localVideoRef.current) {
-          localVideoRef.current.srcObject = stream;
-        }
+    const backendSocketURL = process.env.NEXT_PUBLIC_SOCKET_URL + "/interview";
+    socketRef.current = io(backendSocketURL, { withCredentials: true });
 
-        const backendSocketURL =
-          process.env.NEXT_PUBLIC_SOCKET_URL + "/interview";
+    // Wait for socket connection
+    const waitForSocketConnect = new Promise((res) => {
+      if (socketRef.current.connected) res();
+      else socketRef.current.once("connect", res);
+    });
 
-        socketRef.current = io(backendSocketURL, {
-          withCredentials: true,
-        });
+    waitForSocketConnect.then(() => {
+      const socket = socketRef.current;
+      if (!socket) return;
 
-        await new Promise((res) => {
-          if (socketRef.current.connected) res();
-          else socketRef.current.once("connect", res);
-        });
+      // === PARTICIPANT: enable-monitor ===
+      socket.on("enable-monitor", ({ roomId: rid }) => {
+        console.log("✅ enable-monitor received (participant). roomId:", rid);
 
-        // create-room
-        socketRef.current.emit("create-room", { roomId, userName }, (res) => {
-          if (res?.error) {
-            toast.error(res.error);
-            setLoading(false);
-            return;
+        const sendEvent = (event) => {
+          console.log("emitting monitor-event:", event, "for", socket.id);
+          socket.emit("monitor-event", {
+            roomId: rid,
+            socketId: socket.id,
+            event,
+          });
+        };
+
+        // only emit when tab is hidden
+        const handleVisibility = () => {
+          if (document.hidden) {
+            sendEvent("tab-hidden");
           }
-          updateMembers(res.members || []);
+        };
 
-          // join-room
-          socketRef.current.emit(
-            "join-room",
-            {
-              roomId,
-              userName,
-              isMuted, // yeh add kar
-              cameraOn, // yeh add kar
-            },
-            (resp) => {
-              if (resp?.error) {
-                toast.error(resp.error);
-                setLoading(false);
-                return;
-              }
-              updateMembers(resp.members || []);
+        // attach listener
+        window.addEventListener("visibilitychange", handleVisibility);
+
+        // initial state check (only if hidden at load)
+        handleVisibility();
+
+        // ack back
+        socket.emit("monitor-enabled", { roomId: rid, socketId: socket.id });
+
+        // disable hook
+        socket.once("disable-monitor", () => {
+          window.removeEventListener("visibilitychange", handleVisibility);
+          console.log("❌ Monitoring stopped for me (participant)");
+        });
+      });
+
+      // === HOST: listen for monitor-event ===
+      socket.on("monitor-event", (payload) => {
+        console.log(payload);
+
+        // ✅ find host participant
+        const host = participantsRef.current.find((p) => p.isHost);
+
+        console.log("Current host:", host);
+
+        // ✅ only the host client should update monitorLogs
+        if (host) {
+          const { socketId, event, time } = payload || {};
+          const logEntry = {
+            socketId,
+            event,
+            time: time || new Date().toISOString(),
+          };
+
+          console.log("host received monitor-event (processed):", logEntry);
+          setMonitorLogs((prev) => [logEntry, ...prev]);
+        }
+      });
+
+      // === After handlers are ready, request camera/mic ===
+      navigator.mediaDevices
+        .getUserMedia({ video: true, audio: true })
+        .then((stream) => {
+          if (!mounted) return;
+          localStreamRef.current = stream;
+          if (localVideoRef.current) {
+            localVideoRef.current.srcObject = stream;
+          }
+
+          // create-room
+          socket.emit("create-room", { roomId, userName }, (res) => {
+            if (res?.error) {
+              toast.error(res.error);
               setLoading(false);
+              return;
+            }
+            updateMembers(res.members || []);
+
+            // join-room
+            socket.emit(
+              "join-room",
+              { roomId, userName, isMuted, cameraOn },
+              (resp) => {
+                if (resp?.error) {
+                  toast.error(resp.error);
+                  setLoading(false);
+                  return;
+                }
+                updateMembers(resp.members || []);
+                setLoading(false);
+              }
+            );
+          });
+
+          // WebRTC manager
+          webrtcRef.current = createWebRTCManager({
+            socket,
+            roomId,
+            localStream: localStreamRef.current,
+            onRemoteStream: handleRemoteStream,
+            onParticipantsList: updateMembers,
+          });
+          webrtcRef.current.attach();
+
+          // other socket listeners
+          socket.on(
+            "user-joined",
+            ({ socketId, userName, isMuted, cameraOn }) => {
+              setParticipants((prev) => {
+                if (prev.find((p) => p.socketId === socketId)) return prev;
+                return [
+                  ...prev,
+                  {
+                    socketId,
+                    userName,
+                    isHost: false,
+                    isMuted: typeof isMuted === "boolean" ? isMuted : false,
+                    cameraOn: typeof cameraOn === "boolean" ? cameraOn : true,
+                  },
+                ];
+              });
             }
           );
-        });
 
-        // WebRTC manager
-        webrtcRef.current = createWebRTCManager({
-          socket: socketRef.current,
-          roomId,
-          localStream: localStreamRef.current,
-          onRemoteStream: (socketId, stream) => {
-            handleRemoteStream(socketId, stream);
-          },
-          onParticipantsList: (members) => {
-            updateMembers(members);
-          },
-        });
-        webrtcRef.current.attach();
+          socket.on("user-left", ({ socketId }) => {
+            setRemoteStreamsMap((prev) => {
+              const copy = { ...prev };
+              delete copy[socketId];
+              return copy;
+            });
 
-        // socket listeners
-        socketRef.current.on(
-          "user-joined",
-          ({ socketId, userName, isMuted, cameraOn }) => {
+            setParticipants((prev) =>
+              prev.filter((p) => p.socketId !== socketId)
+            );
+
+            if (webrtcRef.current) {
+              webrtcRef.current.closePeer(socketId);
+            }
+          });
+
+          socket.on("user-connecting", ({ socketId, userName }) => {
             setParticipants((prev) => {
               if (prev.find((p) => p.socketId === socketId)) return prev;
               return [
@@ -117,70 +208,32 @@ export default function useRoomConnection({
                   socketId,
                   userName,
                   isHost: false,
-                  isMuted: typeof isMuted === "boolean" ? isMuted : false,
-                  cameraOn: typeof cameraOn === "boolean" ? cameraOn : true,
+                  status: "connecting",
+                  isMuted: false,
+                  cameraOn: true,
                 },
               ];
             });
-          }
-        );
 
-        socketRef.current.on("user-left", ({ socketId }) => {
-          // 1. Remote stream cleanup
-          setRemoteStreamsMap((prev) => {
-            const copy = { ...prev };
-            delete copy[socketId];
-            return copy;
+            setTimeout(() => {
+              webrtcRef.current && webrtcRef.current.createOfferTo(socketId);
+            }, 100);
           });
 
-          // 2. Participants list update
-          setParticipants((prev) =>
-            prev.filter((p) => p.socketId !== socketId)
-          );
-
-          // 3. Close WebRTC peer connection
-          if (webrtcRef.current) {
-            webrtcRef.current.closePeer(socketId);
-          }
-        });
-
-        socketRef.current.on("user-connecting", ({ socketId, userName }) => {
-          setParticipants((prev) => {
-            if (prev.find((p) => p.socketId === socketId)) return prev;
-            return [
-              ...prev,
-              {
-                socketId,
-                userName,
-                isHost: false,
-                status: "connecting",
-                isMuted: false,
-                cameraOn: true,
-              },
-            ];
+          socket.on("user-count", ({ count }) => {
+            setUserCount(count);
           });
-          setTimeout(() => {
-            webrtcRef.current && webrtcRef.current.createOfferTo(socketId);
-          }, 100);
-        });
 
-        socketRef.current.on("user-count", ({ count }) => {
-          setUserCount(count);
-        });
+          socket.on("room-closed", () => {
+            toast.error("Host ended the meeting");
+            try {
+              webrtcRef.current?.destroy();
+              socket.disconnect();
+            } catch (e) {}
+            router.replace("/interviews");
+          });
 
-        socketRef.current.on("room-closed", () => {
-          toast.error("Host ended the meeting");
-          try {
-            webrtcRef.current && webrtcRef.current.destroy(); // ✅ closes all peers
-            socketRef.current && socketRef.current.disconnect();
-          } catch (e) {}
-          router.replace("/interviews");
-        });
-
-        // 🔹 listen for participant state updates
-        socketRef.current.on(
-          "participant-update",
-          ({ socketId, isMuted, cameraOn }) => {
+          socket.on("participant-update", ({ socketId, isMuted, cameraOn }) => {
             setParticipants((prev) =>
               prev.map((p) =>
                 p.socketId === socketId
@@ -192,30 +245,33 @@ export default function useRoomConnection({
                   : p
               )
             );
-          }
-        );
-      })
-      .catch((err) => {
-        toast.error("Could not access camera/mic");
-        console.error(err);
-        setLoading(false);
-      });
+          });
+        })
+        .catch((err) => {
+          toast.error("Could not access camera/mic");
+          console.error(err);
+          setLoading(false);
+        });
+    });
 
     return () => {
       mounted = false;
       try {
-        socketRef.current && socketRef.current.emit("leave-room", { roomId });
-        webrtcRef.current && webrtcRef.current.destroy();
+        if (socketRef.current) {
+          socketRef.current.emit("leave-room", { roomId });
+          socketRef.current.off(); // remove all listeners
+          socketRef.current.disconnect();
+        }
+        webrtcRef.current?.destroy();
         if (localStreamRef.current) {
           localStreamRef.current.getTracks().forEach((t) => t.stop());
           localStreamRef.current = null;
         }
-        socketRef.current && socketRef.current.disconnect();
       } catch (e) {
         console.warn(e);
       }
     };
-  }, [roomId, userName, role, router]);
+  }, [roomId, userName, router]);
 
   return {
     participants,
@@ -225,6 +281,7 @@ export default function useRoomConnection({
     localVideoRef,
     localStreamRef,
     socketRef,
-    webrtcRef, // 🔹 add this
+    webrtcRef,
+    monitorLogs,
   };
 }

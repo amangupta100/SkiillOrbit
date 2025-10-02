@@ -13,6 +13,8 @@ export default function CreateRoomModal({ onClose, data }) {
     generateRoomId();
   }, []);
 
+  console.log(data);
+
   // Generate random room ID locally
   const generateRoomId = () => {
     const newRoomId = Math.random().toString(36).substring(2, 10);
@@ -30,7 +32,7 @@ export default function CreateRoomModal({ onClose, data }) {
     if (!roomId) return;
 
     // save user info so [roomId].jsx can pick it up
-    localStorage.setItem("data", JSON.stringify(data));
+    sessionStorage.setItem("data", JSON.stringify(data));
 
     // redirect directly (room creation happens in [roomId].jsx)
     router.replace(`/interviews/${roomId}`);

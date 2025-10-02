@@ -1,5 +1,6 @@
 const InternshipModel = require("../../models/InternshipModel");
 const Job = require("../../models/JobModel");
+const RecruiterModel = require("../../models/RecruiterModel");
 
 const createJobPosting = async (req, res) => {
   try {
@@ -71,7 +72,7 @@ const getallPosting = async (req, res) => {
     }
 
     // Fetch jobs
-    const jobs = await Job.find({ createdBy: recruiter._id })
+    const jobs = await Job.find({ createdBy: recruiter.id })
       .populate("company", "name logo")
       .sort({ createdAt: -1 })
       .lean(); // convert to plain objects
@@ -80,7 +81,7 @@ const getallPosting = async (req, res) => {
     const taggedJobs = jobs.map((job) => ({ ...job, type: "Job" }));
 
     // Fetch internships
-    const internships = await InternshipModel.find({ createdBy: recruiter._id })
+    const internships = await InternshipModel.find({ createdBy: recruiter.id })
       .populate("company", "name logo")
       .sort({ createdAt: -1 })
       .lean();
@@ -112,7 +113,8 @@ const getallPosting = async (req, res) => {
 const createInternPosting = async (req, res) => {
   try {
     const {
-      title,
+      domain,
+      role,
       requiredSkills,
       optionalSkills,
       duration,
@@ -126,21 +128,30 @@ const createInternPosting = async (req, res) => {
       about,
       benefits,
       preferences,
-      createdBy,
-      company,
     } = req.body;
 
     const recruiter = req.recruiter; // set by authMiddleware
 
-    if (!recruiter || !recruiter._id || !recruiter.companyId) {
+    if (!recruiter) {
       return res.status(403).json({ success: false, message: "Unauthorized" });
     }
 
+    // get recruiter details with company populated
+    const reqDet = await RecruiterModel.findById(recruiter.id).populate(
+      "companyId"
+    );
+    if (!reqDet) {
+      return res
+        .status(404)
+        .json({ success: false, message: "Recruiter not found" });
+    }
+
     const internshipData = {
-      title,
+      domain,
+      role,
       requiredSkills,
       optionalSkills,
-      duration: Number(duration),
+      duration: String(duration), // schema expects String
       stipend: {
         min: Number(stipend.min),
         max: Number(stipend.max),
@@ -154,17 +165,22 @@ const createInternPosting = async (req, res) => {
       about,
       benefits,
       preferences: {
-        graduationYear: Number(preferences?.graduationYear),
-        minimumCGPA: parseFloat(preferences?.cgpaValue),
-        otherPreferences: preferences?.others || "",
+        GraduationYear: Number(preferences?.graduationYear),
+        MinimumCGPA: parseFloat(preferences?.cgpaValue),
+        OtherPreferences: preferences?.others || "",
       },
-      createdBy: recruiter._id,
-      company: recruiter.companyId,
+      createdBy: reqDet._id,
+      company: reqDet.companyId, // ✅ fix: use recruiter’s companyId
     };
 
+    // create internship
     const newInternship = await InternshipModel.create(internshipData);
 
-    // Populate the company field
+    // push into recruiter’s internships
+    reqDet.internships.push(newInternship._id);
+    await reqDet.save();
+
+    // populate for response
     const populatedInternship = await InternshipModel.findById(
       newInternship._id
     ).populate("company");
@@ -182,4 +198,58 @@ const createInternPosting = async (req, res) => {
   }
 };
 
-module.exports = { createJobPosting, getallPosting, createInternPosting };
+const deletePosting = async (req, res) => {
+  try {
+    const recruiter = req.recruiter; // set in authMiddleware
+    const { id } = req.params;
+
+    if (!recruiter || !recruiter.id) {
+      return res.status(401).json({ success: false, message: "Unauthorized" });
+    }
+
+    // Try finding in Job first
+    let posting = await Job.findById(id);
+    let type = "Job";
+
+    if (!posting) {
+      posting = await InternshipModel.findById(id);
+      type = "Internship";
+    }
+
+    if (!posting) {
+      return res
+        .status(404)
+        .json({ success: false, message: "Posting not found" });
+    }
+
+    // Ownership check
+    if (posting.createdBy.toString() !== recruiter.id) {
+      return res
+        .status(403)
+        .json({
+          success: false,
+          message: "Not allowed to delete this posting",
+        });
+    }
+
+    await posting.deleteOne();
+
+    return res.status(200).json({
+      success: true,
+      message: `${type} deleted successfully`,
+    });
+  } catch (error) {
+    console.error("Error deleting posting:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to delete posting",
+    });
+  }
+};
+
+module.exports = {
+  createJobPosting,
+  getallPosting,
+  createInternPosting,
+  deletePosting,
+};

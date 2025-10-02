@@ -95,7 +95,7 @@ const OTP_Verf = `<!DOCTYPE html>
       <!-- Header -->
       <div class="header">
         <div class="logo">
-          <img src="https://res.cloudinary.com/dt9codbw2/image/upload/v1757310129/logo_o6y0ba.png" alt="SkillOrbit Logo">
+          <img src="https://res.cloudinary.com/ddad6pdhx/image/upload/v1758799527/logo_qzuuth.png" alt="SkillOrbit Logo">
         </div>
       </div>
 

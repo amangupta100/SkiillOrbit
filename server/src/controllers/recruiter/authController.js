@@ -195,15 +195,20 @@ const register = async (req, res) => {
           role: "recruiter",
         });
 
-        const savedRecruiter = await newRecruiter.save();
+        // Generate new session token
+        const sessionToken = newRecruiter.generateSessionToken();
+        newRecruiter.sessionToken = sessionToken;
+
+        await newRecruiter.updateLastLogin();
+        await newRecruiter.save();
 
         const response = {
           recruiter: {
-            _id: savedRecruiter._id,
-            name: savedRecruiter.name,
-            role: savedRecruiter.role,
-            designation: savedRecruiter.designation,
-            companyId: savedRecruiter.companyId,
+            _id: newRecruiter._id,
+            name: newRecruiter.name,
+            role: newRecruiter.role,
+            designation: newRecruiter.designation,
+            companyId: newRecruiter.companyId,
           },
           company: {
             _id: savedCompany._id,
@@ -225,12 +230,6 @@ const register = async (req, res) => {
             : {}), // localhost me domain set mat karo
         });
 
-        // Generate new session token
-        const sessionToken = newRecruiter.generateSessionToken();
-        newRecruiter.sessionToken = sessionToken;
-
-        await newRecruiter.updateLastLogin();
-        await newRecruiter.save();
         return res.json({
           success: true,
           message: "Recruiter Profile Setup successfully",

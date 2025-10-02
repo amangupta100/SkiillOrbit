@@ -62,9 +62,10 @@ const page = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
+    toast.success("Processing...");
 
     try {
-      await API.post("/recruiter/profilePendingCookie");
+      await API.post("/recruiter/auth/profilePendingCookie");
 
       // 2. Then set the form data in store
       localStorage.setItem("RecruiterData", JSON.stringify(formData));

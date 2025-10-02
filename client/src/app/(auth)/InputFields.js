@@ -208,7 +208,6 @@ export const recruiterProfileFields = [
     name: "twitter",
     type: "url",
     placeholder: "https://twitter.com/yourcompany",
-    required: true,
   },
   {
     label: "Headquarter Location",

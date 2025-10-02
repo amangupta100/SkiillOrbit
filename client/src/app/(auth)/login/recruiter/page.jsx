@@ -45,7 +45,7 @@ const page = () => {
     e.preventDefault();
     try {
       setLoading(true);
-      const resp = await API.post("/recruiter/login", formData);
+      const resp = await API.post("/recruiter/auth/login", formData);
       const { success: succ, message } = resp.data;
       console.log(resp.data.data);
       if (succ) {

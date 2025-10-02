@@ -26,9 +26,8 @@ const Page = () => {
 
   const handleJoin = () => {
     if (!roomIdInput.trim()) return;
-    window.location.href = `/interviews/${roomIdInput.trim()}`;
-    // save user info so [roomId].jsx can pick it up
-    localStorage.setItem("data", JSON.stringify(det));
+    sessionStorage.setItem("data", JSON.stringify(det));
+    router.replace(`/interviews/${roomIdInput.trim()}?kiosk=true`);
   };
 
   return (
