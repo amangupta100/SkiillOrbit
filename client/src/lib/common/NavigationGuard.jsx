@@ -10,13 +10,16 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import ButtonLoader from "@/utils/Loader";
 
 export default function NavigationGuard({
   message = "Your interview progress will be lost if you leave this page.",
-  url = "/userDashboard/interviewPreparation",
+  url = "/job-seekerDashboard/interviewPreparation",
+  EndIntervSession,
 }) {
   const [showNavDialog, setShowNavDialog] = useState(false);
   const pendingNavigation = useRef(null);
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     // Warn on refresh / close tab
@@ -43,6 +46,20 @@ export default function NavigationGuard({
     };
   }, [message]);
 
+  const handleLeave = async () => {
+    try {
+      setLoading(true);
+      const resp = await EndIntervSession();
+      if (resp?.success) {
+        toast.success("Interview Ended Successfully");
+      } else toast.error(resp?.message || "Error ending session");
+    } catch (err) {
+      toast.error("Error ending session. Please try again." + err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <AlertDialog open={showNavDialog} onOpenChange={setShowNavDialog}>
       <AlertDialogContent>
@@ -58,9 +75,11 @@ export default function NavigationGuard({
             onClick={() => {
               setShowNavDialog(false);
               window.location.href = url;
+              handleLeave();
             }}
+            disabled={loading}
           >
-            Leave
+            {loading && <ButtonLoader />} {loading ? "Leaving..." : "Leave"}
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>

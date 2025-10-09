@@ -100,6 +100,7 @@ const login = async (req, res) => {
 
     await checkUser.updateLastLogin();
     await checkUser.save();
+    await checkUser.updateActivity();
 
     // Set both tokens as cookies
     genAccessToken(checkUser, res);
@@ -145,7 +146,7 @@ const logout = async (req, res) => {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: process.env.NODE_ENV === "production" ? "None" : "Lax",
-      maxAge: 15 * 60 * 1000, // 15 minutes
+      maxAge: 7 * 24 * 60 * 60 * 1000, // 15 minutes
       ...(process.env.NODE_ENV === "production"
         ? { domain: ".skillsorbit.in" }
         : {}), // localhost me domain set mat karo
@@ -204,7 +205,7 @@ const clearAccRefCook = async (req, res) => {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
     sameSite: process.env.NODE_ENV === "production" ? "None" : "Lax",
-    maxAge: 15 * 60 * 1000, // 15 minutes
+    maxAge: 7 * 24 * 60 * 60 * 1000, // 15 minutes
     ...(process.env.NODE_ENV === "production"
       ? { domain: ".skillsorbit.in" }
       : {}), // localhost me domain set mat karo

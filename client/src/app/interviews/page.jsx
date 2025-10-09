@@ -39,7 +39,9 @@ const Page = () => {
         <Button
           onClick={() =>
             (window.location.href = `/${
-              det.role === "recruiter" ? "recruiterDashboard" : "userDashboard"
+              det.role === "recruiter"
+                ? "recruiterDashboard"
+                : "job-seekerDashboard"
             }`)
           }
         >

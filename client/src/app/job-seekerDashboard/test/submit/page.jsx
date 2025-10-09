@@ -21,6 +21,7 @@ import useEvaluationStore from "@/store/test/useEvaluationState";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
+import API from "@/utils/interceptor";
 
 const genAI = new GoogleGenerativeAI("AIzaSyD9zE89oUuo-UBw4CPu4rLtZSQTx7bpDbE");
 const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
@@ -38,12 +39,12 @@ const DebugEvaluationPage = () => {
     useEvaluationStore();
   const router = useRouter();
 
+  console.log(evaluations);
+
   useEffect(() => {
     const handleSubmissionAndEvaluation = async () => {
       try {
         setLoading(true);
-
-        console.log(recordingId);
         setLoaderStatus("Submitting your answers...");
 
         // const success = await submitRecording();
@@ -67,6 +68,8 @@ const DebugEvaluationPage = () => {
         setLoaderStatus("Evaluating your solutions...");
         const { questions, answers } = getEvaluationData();
         const evaluationResults = await evaluateAllAtOnce(questions, answers);
+
+        const resp = await API.post();
 
         // Store results in state and session
         setEvaluations(evaluationResults);
@@ -140,27 +143,39 @@ const DebugEvaluationPage = () => {
       .join("\n")}
 
     Required JSON output format:
-    {
+     {
       "evaluations": [
         {
           "questionId": "string",
           "title": "string",
           "isCorrect": boolean,
+          "score": number,
           "description": "string",
           "feedback": "string",
           "fixedBugs": ["string"],
           "remainingIssues": ["string"],
-          "answerCode":"string"
+          "answerCode": "string",
+          "userCode": "string"
         }
       ]
-    }`;
+    }
+    Make sure generate the overall report for the test result only. No additional commentary.
+    `;
     };
 
     const parseBulkAIResponse = (text) => {
       try {
         const cleaned = text.replace(/```json|```/g, "").trim();
         const parsed = JSON.parse(cleaned);
-        return parsed.evaluations;
+
+        // Force attach user answers serially if missing
+        const answers = JSON.parse(sessionStorage.getItem("answers") || "[]");
+
+        return parsed.evaluations.map((evalObj, i) => ({
+          ...evalObj,
+          userCode:
+            evalObj.userCode || answers[i]?.code || "No answer provided",
+        }));
       } catch (error) {
         throw new Error("Invalid evaluation response format");
       }
@@ -207,6 +222,17 @@ const DebugEvaluationPage = () => {
     }
   }, [evaluations]);
 
+  useEffect(() => {
+    return () => {
+      sessionStorage.removeItem("evaluations");
+      sessionStorage.removeItem("questions");
+      sessionStorage.removeItem("answers");
+      sessionStorage.removeItem("recording-store");
+      sessionStorage.removeItem("evaluation-store");
+      sessionStorage.removeItem("proctoringNotifications");
+    };
+  }, []);
+
   // Render results
   if (loading) {
     return (
@@ -227,7 +253,7 @@ const DebugEvaluationPage = () => {
         <h1 className="text-xl font-bold">Test Results</h1>
         <Button
           className="hover:bg-black/70"
-          onClick={() => (window.location.href = "/userDashboard/test")}
+          onClick={() => (window.location.href = "/job-seekerDashboard/test")}
         >
           Return to Dashboard
         </Button>
@@ -394,15 +420,15 @@ const DebugEvaluationPage = () => {
                     <div className="h-64">
                       <Editor
                         height="100%"
-                        defaultValue={result.originalCode}
+                        defaultValue={result.answerCode}
                         options={{
+                          minimap: { enabled: false },
                           readOnly: true,
                           minimap: { enabled: false },
                           scrollBeyondLastLine: false,
                           fontSize: 14,
                           lineNumbers: "off",
                         }}
-                        theme="vs"
                       />
                     </div>
                   </div>

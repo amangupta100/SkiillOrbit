@@ -58,16 +58,20 @@ const recruiterNavigationItems = [
 ];
 
 const jobSeekerNavigationItems = [
-  { title: "Home", url: "/userDashboard", icon: Home },
+  { title: "Home", url: "/job-seekerDashboard", icon: Home },
   {
     title: "Opportunities",
-    url: "/userDashboard/opportunities",
+    url: "/job-seekerDashboard/opportunities",
     icon: Briefcase,
   },
-  { title: "Skill Tests", url: "/userDashboard/test", icon: FileTextIcon },
+  {
+    title: "Skill Tests",
+    url: "/job-seekerDashboard/test",
+    icon: FileTextIcon,
+  },
   {
     title: "Applied",
-    url: "/userDashboard/appliedOpportunities",
+    url: "/job-seekerDashboard/appliedOpportunities",
     icon: MousePointer2Icon,
   },
   {
@@ -77,19 +81,23 @@ const jobSeekerNavigationItems = [
   },
   {
     title: "Interview Prep",
-    url: "/userDashboard/interviewPreparation",
+    url: "/job-seekerDashboard/interviewPreparation",
     icon: IoIosVideocam,
   },
-  { title: "Messages", url: "/userDashboard/messages", icon: MessageSquare },
-  { title: "Profile", url: "/userDashboard/profile", icon: User },
+  {
+    title: "Messages",
+    url: "/job-seekerDashboard/messages",
+    icon: MessageSquare,
+  },
+  { title: "Profile", url: "/job-seekerDashboard/profile", icon: User },
 ];
 
 const hidePaths = [
-  "/userDashboard/test/verifyIdentity",
-  "/userDashboard/test/instructions",
-  "/userDashboard/test/testEnvironment",
-  "/userDashboard/test/submit",
-  "/userDashboard/interviewPreparation/interview",
+  "/job-seekerDashboard/test/verifyIdentity",
+  "/job-seekerDashboard/test/instructions",
+  "/job-seekerDashboard/test/testEnvironment",
+  "/job-seekerDashboard/test/submit",
+  "/job-seekerDashboard/interviewPreparation/interview",
   "/interviews",
 ];
 
@@ -108,7 +116,7 @@ export function AppSidebar() {
   const handleLogout = async () => {
     setLoading(true);
     if (role === "recruiter") {
-      const resp = await API.post("/recruiter/logout");
+      const resp = await API.post("/recruiter/auth/logout");
       const { message, success: succ } = resp.data;
       if (succ) {
         toast.success(message);
@@ -119,7 +127,7 @@ export function AppSidebar() {
       toast.success(resp.data.message);
       setLoading(false);
     }
-    if (pathname === "/userDashboard/test/verifyIdentity") {
+    if (pathname === "/job-seekerDashboard/test/verifyIdentity") {
       return null;
     }
     window.location.reload();
@@ -158,7 +166,7 @@ export function AppSidebar() {
                 const homePath =
                   role === "recruiter"
                     ? "/recruiterDashboard"
-                    : "/userDashboard";
+                    : "/job-seekerDashboard";
 
                 // For "Home", only highlight if the pathname matches the home path
                 const isHomeActive =

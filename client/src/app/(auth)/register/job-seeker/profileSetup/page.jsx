@@ -107,7 +107,7 @@ const page = () => {
       }
       try {
         setLoading((prev) => ({ ...prev, skills: true }));
-        const response = await API.get("/job-seeker/getSkills", {
+        const response = await API.get("/job-seeker/skills/getSkills", {
           params: { type: "skills", q: query },
         });
         setSuggestions((prev) => ({ ...prev, skills: response.data }));

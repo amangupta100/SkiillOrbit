@@ -51,7 +51,7 @@ const Page = () => {
               <button className="p-2 hover:bg-zinc-100 rounded-full">
                 <IoMdArrowBack
                   onClick={() =>
-                    (window.location.href = "/userDashboard/profile")
+                    (window.location.href = "/job-seekerDashboard/profile")
                   }
                   className="text-2xl"
                 />

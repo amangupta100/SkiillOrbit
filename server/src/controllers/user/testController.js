@@ -1,6 +1,7 @@
 const { connection } = require("mongoose");
 const UserModel = require("../../models/UserModel");
 const TestModel = require("../../models/TestModel");
+const jwt = require("jsonwebtoken");
 
 const getAllTestScores = async (req, res) => {
   try {
@@ -72,20 +73,23 @@ const getSkillsByUserDesiredRole = async (req, res) => {
 
 const genTest = async (req, res) => {
   try {
-    const { skills, questionCount, userId } = req.testDet;
+    const { skills, userId } = req.body; // 👈 get from body instead of req.testDet
     const { questions } = req.body;
 
-    if (!skills || !questionCount || !userId) {
+    if (!skills || !userId) {
       return res.status(400).json({
         message: "Missing required test details.",
         success: false,
       });
     }
 
-    const parsedSkills = JSON.parse(skills);
-    const parsedQuestions = JSON.parse(questions);
+    const questionCount = questions.length;
 
-    // Map questions to include all necessary details
+    const parsedSkills = Array.isArray(skills) ? skills : JSON.parse(skills);
+    const parsedQuestions = Array.isArray(questions)
+      ? questions
+      : JSON.parse(questions);
+
     const embeddedQuestions = parsedQuestions.map((q) => ({
       title: q.title,
       type: q.type || "code",
@@ -94,36 +98,47 @@ const genTest = async (req, res) => {
       difficulty: q.difficulty || "medium",
     }));
 
-    // Create the test with questions embedded
+    const durationMinutes = parseInt(questionCount) * 3;
+
     const newTest = new TestModel({
       userId,
       skills: parsedSkills,
       totalQuestions: parseInt(questionCount),
-      duration: `${parseInt(questionCount) * 3} mins`,
+      duration: `${durationMinutes} mins`,
       startedAt: new Date(),
-      submittedAt: new Date(Date.now() + parseInt(questionCount) * 3 * 60000),
       testCompleted: false,
       questions: embeddedQuestions,
     });
 
     await newTest.save();
 
-    // Save test in user's `test` field
-    const user = await UserModel.findById(userId);
-    if (!user) {
-      return res
-        .status(404)
-        .json({ success: false, message: "User not found" });
-    }
+    await UserModel.findByIdAndUpdate(userId, {
+      $push: { test: newTest._id },
+    });
 
-    user.test = user.test || [];
-    user.test.push(newTest); // Push the entire test document
-    await user.save();
+    const t_id = jwt.sign(
+      {
+        test_id: newTest._id,
+      },
+      process.env.TEST_SECRET_KEY,
+      { expiresIn: `${durationMinutes}m` }
+    );
+
+    res.cookie("t_id", t_id, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: process.env.NODE_ENV === "production" ? "None" : "Lax",
+      maxAge: durationMinutes * 60 * 1000, // duration minutes
+      ...(process.env.NODE_ENV === "production"
+        ? { domain: ".skillsorbit.in" }
+        : {}), // localhost me domain set mat karo
+    });
 
     res.status(201).json({
       success: true,
-      message: "Test generated and saved in user successfully.",
+      message: "Test generated successfully",
       testId: newTest._id,
+      test: newTest,
     });
   } catch (err) {
     console.error("Error generating test:", err);
@@ -132,17 +147,74 @@ const genTest = async (req, res) => {
 };
 
 const testSubmit = async (req, res) => {
-  res.clearCookie("td", {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: process.env.NODE_ENV === "production" ? "None" : "Lax",
-    maxAge: 15 * 60 * 1000, // 15 minutes
-    ...(process.env.NODE_ENV === "production"
-      ? { domain: ".skillsorbit.in" }
-      : {}), // localhost me domain set mat karo
-  });
+  try {
+    const { uanswer, canswer } = req.body;
+    const { t_id: testId } = req.cookies;
 
-  res.json({ success: true, message: "Test Submitted Successfully" });
+    const test = await TestModel.findById(testId);
+    if (!test) {
+      return res
+        .status(404)
+        .json({ success: false, message: "Test not found" });
+    }
+
+    // Basic evaluation (compare uanswer vs canswer)
+    let correctCount = 0;
+    let incorrectCount = 0;
+
+    uanswer.forEach((ans, idx) => {
+      if (canswer[idx] && ans.code?.trim() === canswer[idx].code?.trim()) {
+        correctCount++;
+      } else {
+        incorrectCount++;
+      }
+    });
+
+    const scorePercent = Math.round((correctCount / test.totalQuestions) * 100);
+
+    // Save fields
+    test.uanswer = uanswer;
+    test.canswer = canswer;
+    test.correctCount = correctCount;
+    test.incorrectCount = incorrectCount;
+    test.scorePercent = scorePercent;
+    test.testCompleted = true;
+    test.submittedAt = new Date();
+
+    await test.save();
+
+    // Clear test cookie if used
+    res.clearCookie("td", {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: process.env.NODE_ENV === "production" ? "None" : "Lax",
+      maxAge: test.totalQuestions * 60 * 1000,
+      ...(process.env.NODE_ENV === "production"
+        ? { domain: ".skillsorbit.in" }
+        : {}), // localhost me domain set mat karo
+    });
+
+    res.clearCookie("t_id", {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: process.env.NODE_ENV === "production" ? "None" : "Lax",
+      maxAge: test.totalQuestions * 60 * 1000,
+      ...(process.env.NODE_ENV === "production"
+        ? { domain: ".skillsorbit.in" }
+        : {}), // localhost me domain set mat karo
+    });
+
+    res.json({
+      success: true,
+      message: "Test submitted successfully",
+      correctCount,
+      incorrectCount,
+      scorePercent,
+    });
+  } catch (err) {
+    console.error("Error submitting test:", err);
+    res.status(500).json({ error: "Internal server error." });
+  }
 };
 
 module.exports = {

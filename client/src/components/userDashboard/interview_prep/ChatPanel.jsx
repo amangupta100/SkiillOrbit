@@ -7,6 +7,7 @@ import { MdOutlineCallEnd } from "react-icons/md";
 import { IoMicOutline } from "react-icons/io5";
 import { HiOutlineSpeakerWave } from "react-icons/hi2";
 import { motion, AnimatePresence } from "framer-motion";
+import ButtonLoader from "@/utils/Loader";
 
 export default function ChatPanel({
   messages,
@@ -29,6 +30,7 @@ export default function ChatPanel({
   handleEndSession,
   loading,
   transcript,
+  endLoadState,
 }) {
   const chatContainerRef = useRef(null);
 
@@ -57,13 +59,15 @@ export default function ChatPanel({
         </div>
 
         <div className="flex gap-3 items-center">
-          <div
+          <Button
+            disabled={endLoadState}
             onClick={handleEndSession}
             className="flex gap-2 py-2 px-3 cursor-pointer rounded-lg bg-red-400 hover:bg-red-400/90 items-center"
           >
             <MdOutlineCallEnd className="text-white" />
-            <h1 className="text-white">End</h1>
-          </div>
+            {endLoadState && <ButtonLoader />}{" "}
+            {endLoadState ? "Ending..." : "End"}
+          </Button>
         </div>
       </div>
 

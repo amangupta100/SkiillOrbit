@@ -57,6 +57,9 @@ storybook-static/
 *.secret
 secrets.json
 config.json
+yolov8s.pt
+yolov8m.pt
+yolov8l.pt
 
 # ===============================
 # OS / Editor junk files

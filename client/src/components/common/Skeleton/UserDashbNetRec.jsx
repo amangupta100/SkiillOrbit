@@ -6,10 +6,10 @@ export function DashboardSkeleton() {
   const pathname = usePathname();
 
   const pathsNottoShow = [
-    "/userDashboard/test/instructions",
-    "/userDashboard/test/verifyIdentity",
-    "/userDashboard/test/testEnvironment",
-    "/userDashboard/opportunities",
+    "/job-seekerDashboard/test/instructions",
+    "/job-seekerDashboard/test/verifyIdentity",
+    "/job-seekerDashboard/test/testEnvironment",
+    "/job-seekerDashboard/opportunities",
   ];
 
   if (pathsNottoShow.includes(pathname)) {
@@ -86,7 +86,11 @@ export function DashboardSkeleton() {
             <div className="h-64 w-full bg-gray-200 rounded-lg mb-6"></div>
 
             {/* "No tests taken yet" text */}
-            <div className="text-center">
+            <div className="text-center flex justify-start gap-1 flex-col">
+              <div className="h-5 w-48 bg-gray-200 rounded-sm mx-auto mb-2"></div>
+              <div className="h-4 w-64 bg-gray-200 rounded-sm mx-auto"></div>
+              <div className="h-5 w-48 bg-gray-200 rounded-sm mx-auto mb-2"></div>
+              <div className="h-4 w-64 bg-gray-200 rounded-sm mx-auto"></div>
               <div className="h-5 w-48 bg-gray-200 rounded-sm mx-auto mb-2"></div>
               <div className="h-4 w-64 bg-gray-200 rounded-sm mx-auto"></div>
             </div>

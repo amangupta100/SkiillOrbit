@@ -219,7 +219,7 @@ const page = () => {
                           onClick={(e) => {
                             e.preventDefault();
                             window.location.href =
-                              "/userDashboard/profile/education";
+                              "/job-seekerDashboard/profile/education";
                           }}
                         >
                           Add Education
@@ -230,7 +230,7 @@ const page = () => {
                           onClick={(e) => {
                             e.preventDefault();
                             window.location.href =
-                              "/userDashboard/profile/projects";
+                              "/job-seekerDashboard/profile/projects";
                           }}
                         >
                           Add Projects
@@ -241,7 +241,7 @@ const page = () => {
                           onClick={(e) => {
                             e.preventDefault();
                             window.location.href =
-                              "/userDashboard/profile/experience";
+                              "/job-seekerDashboard/profile/experience";
                           }}
                         >
                           Add Experience
@@ -252,7 +252,7 @@ const page = () => {
                           onClick={(e) => {
                             e.preventDefault();
                             window.location.href =
-                              "/userDashboard/profile/achievements";
+                              "/job-seekerDashboard/profile/achievements";
                           }}
                         >
                           Add Achievements
@@ -263,7 +263,7 @@ const page = () => {
                           onClick={(e) => {
                             e.preventDefault();
                             window.location.href =
-                              "/userDashboard/profile/certifications";
+                              "/job-seekerDashboard/profile/certifications";
                           }}
                         >
                           Add Certifications
@@ -502,13 +502,15 @@ const page = () => {
                 <div className="flex gap-4">
                   <IoAddOutline
                     onClick={() =>
-                      (window.location.href = "/userDashboard/profile/projects")
+                      (window.location.href =
+                        "/job-seekerDashboard/profile/projects")
                     }
                     className="text-2xl cursor-pointer"
                   />
                   <MdOutlineEdit
                     onClick={() =>
-                      (window.location.href = "/userDashboard/profile/projects")
+                      (window.location.href =
+                        "/job-seekerDashboard/profile/projects")
                     }
                     className="text-2xl cursor-pointer"
                   />

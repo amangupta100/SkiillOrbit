@@ -356,7 +356,7 @@ const page = () => {
                   <div className="flex min-w-auto gap-4 items-center">
                     <Button
                       onClick={() => {
-                        window.location.href = `/userDashboard/opportunities/${id}/match-skill`;
+                        window.location.href = `/job-seekerDashboard/opportunities/${id}/match-skill`;
                       }}
                       className="cursor-pointer hover:bg-black/70 transition-all duration-300"
                     >

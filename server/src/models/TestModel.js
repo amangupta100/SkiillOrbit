@@ -25,20 +25,21 @@ const testSchema = new mongoose.Schema(
     correctCount: Number,
     incorrectCount: Number,
     scorePercent: Number,
-    areasToImprove: {
-      type: [String],
-      default: [],
-    },
     startedAt: {
       type: Date,
       required: true,
     },
     submittedAt: {
       type: Date,
-      required: true,
     },
     testCompleted: Boolean,
     SuspiciousFlags: [String],
+    uanswer: {
+      type: [Object],
+    },
+    canswer: {
+      type: [Object],
+    },
   },
   {
     timestamps: true,

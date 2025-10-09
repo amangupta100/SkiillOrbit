@@ -22,6 +22,7 @@ export default function InterviewPrep() {
   const [getDetails, setDetails] = useState(null);
   const [loading, setLoading] = useState(false);
   const [pendingSpeech, setPendingSpeech] = useState(null);
+  const [endLoadState, setendLoadState] = useState(false);
 
   const chatContainerRef = useRef(null);
 
@@ -44,60 +45,88 @@ export default function InterviewPrep() {
   }, [messages]);
 
   // AI response generation
-  const generateAIResponse = useCallback(async (userInput, getDetails) => {
-    try {
-      setLoading(true);
+  const generateAIResponse = useCallback(
+    async (userInput, getDetails) => {
+      try {
+        setLoading(true);
 
-      const interviewType = getDetails?.interview_type?.toLowerCase() || "";
-      const role = getDetails?.role || "candidate";
+        const interviewType = getDetails?.interview_type?.toLowerCase() || "";
+        const role = getDetails?.role || "candidate";
 
-      let prompt = `You are a virtual interviewer named Jia. 
-Your job is ONLY to ask clear, short questions in a conversational tone.
-Do not mention or simulate candidate answers.`;
+        // Base prompt for Jia, the Interview Coach
+        let prompt = `You are Jia, SkillOrbit's Virtual Interview Coach.
+Your job is to conduct mock interviews in a friendly, coaching tone.
+You should:
+1. Ask relevant, clear, and conversational interview questions.
+2. If the candidate makes a mistake (grammar, structure, or concept), correct them politely and explain briefly why it was incorrect.
+3. Then, continue the conversation by asking the next appropriate question.
+4. Encourage the candidate positively and maintain a professional yet supportive tone.
+Do NOT answer as the candidate — always respond as the interviewer-coach.
+If the user's input is off-topic or unclear, gently guide them back to the interview context.\n`;
 
-      if (interviewType === "technical interview") {
-        const skillsText =
-          getDetails?.skills?.length > 0
-            ? ` Focus specifically on these skills: ${getDetails.skills.join(
-                ", "
-              )}.`
-            : "";
+        // === Include last 2 messages as chat history context ===
+        if (messages.length > 0) {
+          const lastTwo = messages.slice(-2);
+          const contextText = lastTwo
+            .map(
+              (m) => `${m.sender === "user" ? "Candidate" : "Jia"}: ${m.text}`
+            )
+            .join("\n");
+          prompt += `\nHere is the recent conversation for context:\n${contextText}\n`;
+        }
 
-        prompt += `
-Ask a technical interview question based on "${userInput}".${skillsText}
-Tailor the question to the role: ${role}.
+        // Add interview-type–specific guidance
+        if (interviewType === "technical interview") {
+          const skillsText =
+            getDetails?.skills?.length > 0
+              ? `Focus mainly on these skills: ${getDetails.skills.join(", ")}.`
+              : "";
+
+          prompt += `
+Now, considering the candidate's latest input: "${userInput}",
+analyze if they made any conceptual or communication mistake. 
+If yes, correct them kindly and explain briefly why.
+Then, ask a follow-up or new technical interview question based on their response and the role: ${role}.
+${skillsText}
+Keep it short, natural, and encouraging.
 `;
-      } else if (interviewType === "hr interview") {
-        prompt += `
-Ask an HR-style interview question related to "${userInput}".
-Examples: strengths, weaknesses, teamwork, leadership, motivation.
-Keep it short and friendly.
-Tailor tone to the role: ${role}.
+        } else if (interviewType === "hr interview") {
+          prompt += `
+Now, based on "${userInput}",
+check for any communication or tone mistakes.
+Give a short constructive correction if needed (e.g., how to express more clearly or professionally).
+Then ask the next HR-style question about motivation, teamwork, strengths, or career growth.
+Tone: friendly, confident, and supportive.
 `;
-      } else if (interviewType === "behavioral interview") {
-        prompt += `
-Ask a behavioral interview question based on "${userInput}".
-Examples: conflict resolution, teamwork, decision making.
-Keep it scenario-based and concise.
-Tailor tone to the role: ${role}.
+        } else if (interviewType === "behavioral interview") {
+          prompt += `
+Now, based on "${userInput}",
+evaluate if their behavioral story or response misses structure or clarity.
+Briefly guide them how to improve (like using STAR method).
+Then ask a follow-up behavioral question — concise and realistic.
 `;
-      } else {
-        prompt += `
-Ask a general interview question (could be HR, behavioral, or technical) about "${userInput}".
-Keep it short, supportive, and role-relevant: ${role}.
+        } else {
+          prompt += `
+Now, based on "${userInput}",
+if the answer contains any mistake, correct it gently and explain why.
+Then, continue the interview by asking the next general question relevant to the role: ${role}.
 `;
+        }
+
+        // Generate response from Gemini
+        const result = await model.generateContent(prompt);
+        const response = await result.response;
+
+        return response?.text() || "Sorry, I couldn’t generate a response.";
+      } catch (e) {
+        console.error("AI generation error:", e);
+        return "Sorry, I couldn't generate a response right now.";
+      } finally {
+        setLoading(false);
       }
-
-      const result = await model.generateContent(prompt);
-      const response = await result.response;
-
-      return response?.text() || "Sorry, I couldn’t generate a response.";
-    } catch (e) {
-      return "Sorry, I couldn't generate a response at the moment.";
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+    },
+    [messages]
+  );
 
   // Send message handler
   const handleSendMessage = async () => {
@@ -162,37 +191,12 @@ Keep it short, supportive, and role-relevant: ${role}.
               : "general skills";
           const getname = getDetails?.name || "Candidate";
 
-          let secondLine = "";
-
-          switch (interviewTypeText.toLowerCase()) {
-            case "technical interview": {
-              if (getDetails?.skills && getDetails.skills.length > 0) {
-                const topic = getDetails.skills[0]; // pick first skill (or random)
-                secondLine = `Can you explain a key concept or use case of ${topic}?`;
-              } else {
-                secondLine = `Can you explain one of your general skills in detail?`;
-              }
-              break;
-            }
-
-            case "hr interview":
-              secondLine = `Can you introduce yourself briefly?`;
-              break;
-
-            case "behavioral interview":
-              secondLine = `Can you describe a time when you resolved a conflict at work?`;
-              break;
-
-            default:
-              secondLine = `What motivated you to apply for this ${roleText} role?`;
-          }
-
           const skillsPart =
             getDetails?.skills && getDetails.skills.length > 0
               ? ` with skills ${skillsText}`
               : "";
 
-          const welcomeText = `Hey ${getname}, I am SkillOrbit's Virtual Interviewer named Jia. I am here to take your ${interviewTypeText} for the role of ${roleText}${skillsPart}. ${secondLine}`;
+          const welcomeText = `Hey ${getname}, I am SkillOrbit's Virtual Interviewer named Jia. I am here to take your ${interviewTypeText} for the role of ${roleText}${skillsPart}. Let's get started by introducing yourself briefly.`;
 
           setMessages((prev) => [...prev, { text: welcomeText, sender: "ai" }]);
           setPendingSpeech(welcomeText);
@@ -225,12 +229,21 @@ Keep it short, supportive, and role-relevant: ${role}.
   }, []);
 
   const handleEndSession = async () => {
-    const req = await API2.post("/stt/end-session");
-    const { success: succ, message } = req.data;
-    if (succ) {
-      toast.success("Interview Ended Successfully");
-      window.location.href = "/userDashboard/interviewPreparation";
-    } else toast.error(message);
+    try {
+      setendLoadState(true);
+      const req = await API2.post("/tts/end-session");
+      const { success: succ, message } = req.data;
+      if (succ) {
+        window.location.href = "/job-seekerDashboard/interviewPreparation";
+        return toast.success("Interview Ended Successfully");
+      } else toast.error(message);
+    } catch (err) {
+      return toast.error(
+        "Error ending session. Please try again." + err.message
+      );
+    } finally {
+      setendLoadState(false);
+    }
   };
 
   console.log(phonemeTimings);
@@ -262,9 +275,13 @@ Keep it short, supportive, and role-relevant: ${role}.
         handleSendMessage={handleSendMessage}
         handleKeyPress={handleKeyPress}
         handleEndSession={handleEndSession}
+        endLoadState={endLoadState}
       />
 
-      <NavigationGuard message="Your interview progress will be lost if you navigate away." />
+      <NavigationGuard
+        EndIntervSession={handleEndSession}
+        message="Your interview progress will be lost if you navigate away."
+      />
     </div>
   );
 }

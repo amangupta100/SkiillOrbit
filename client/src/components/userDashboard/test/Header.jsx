@@ -112,9 +112,11 @@ export default function AppHeader({ questions = 0, isInstructionShown }) {
 
   const handleSubmit = async () => {
     setLoading(true);
+    Cookies.remove("isInstructionsShown");
+    Cookies.remove("tt");
     await API.get("/job-seeker/tests/submitTest");
     // Redirect to submit page
-    window.location.href = "/userDashboard/test/submit";
+    window.location.href = "/job-seekerDashboard/test/submit";
     stopRecording();
     setLoading(false);
   };

@@ -109,7 +109,7 @@ export default function ActivityHeatmap() {
 
   return (
     <div className="heatmap-container overflow-x-scroll">
-      <h2 className="text-lg font-semibold mb-2">Your Activities</h2>
+      <h2 className="text-lg font-semibold mb-2">Daily Activities</h2>
 
       {/* horizontal scroll section */}
       <div className="pb-2">

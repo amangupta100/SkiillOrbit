@@ -95,7 +95,7 @@ export const ImageUpload = ({ onChange, onClose, data, imageUpload }) => {
             email: userDet.email,
           };
           await API.post("/sendMail/greetUser", dataSended);
-          window.location.href = "/userDashboard";
+          window.location.href = "/job-seekerDashboard";
         }
 
         if (data && data === "UploadAnother") {

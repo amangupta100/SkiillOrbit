@@ -37,8 +37,6 @@ const page = () => {
   const { user } = useAuthStore();
   const [resLoading, setrespLoading] = useState(false);
 
-  console.log(user);
-
   useEffect(() => {
     const fetchUserData = async () => {
       try {
@@ -54,6 +52,8 @@ const page = () => {
     };
     fetchUserData();
   }, []);
+
+  console.log(testScores);
 
   useEffect(() => {
     const fetchSkills = async () => {
@@ -119,7 +119,7 @@ const page = () => {
       if (!succ)
         return toast.error("Something went wrong, Please try again later!");
       else {
-        window.location.href = "/userDashboard/test/verifyIdentity";
+        window.location.href = "/job-seekerDashboard/test/verifyIdentity";
       }
     } catch (err) {
       toast.warning(err.message);

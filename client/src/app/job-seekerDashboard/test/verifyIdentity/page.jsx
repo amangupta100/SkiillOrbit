@@ -163,14 +163,14 @@ export default function FaceCapture() {
       const frameData = canvas.toDataURL("image/jpeg");
       if (!user?.image) throw new Error("User image data is missing");
 
-      // Step 1: Verify face
-      const response = await API2.post("/verify-face", {
-        captured_image: frameData, // captured frame
-        user_image: user.image.data, // stored reference image
-      });
+      // // Step 1: Verify face
+      // const response = await API2.post("/verify-face", {
+      //   captured_image: frameData, // captured frame
+      //   user_image: user.image.data, // stored reference image
+      // });
 
-      const { success: succ, message } = response.data;
-      if (!succ) return toast.error(message);
+      // const { success: succ, message } = response.data;
+      // if (!succ) return toast.error(message);
 
       // If verified -> proceed
       setLoadSts("Generating Questions ...");
@@ -245,10 +245,11 @@ export default function FaceCapture() {
 
       const saveRes = await API.post("/job-seeker/tests/genTest", {
         questions,
+        skills,
       });
       if (saveRes.data?.success) {
         toast.success("Verification Successful");
-        window.location.href = "/userDashboard/test/testEnvironment/";
+        window.location.href = "/job-seekerDashboard/test/testEnvironment/";
       } else {
         toast.warning(saveRes.data?.message || "Test save failed");
       }

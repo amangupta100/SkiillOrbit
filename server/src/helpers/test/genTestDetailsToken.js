@@ -7,6 +7,8 @@ const genTestToken = (req, res) => {
     throw new Error("Missing required test fields");
   }
 
+  const durationMinutes = parseInt(questionCount) * 3;
+
   const token = jwt.sign(
     {
       skills,
@@ -14,14 +16,14 @@ const genTestToken = (req, res) => {
       questionCount,
     },
     process.env.TEST_SECRET_KEY,
-    { expiresIn: `4h` }
+    { expiresIn: `${durationMinutes}m` }
   );
 
   res.cookie("td", token, {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
     sameSite: process.env.NODE_ENV === "production" ? "None" : "Lax",
-    maxAge: 15 * 60 * 1000, // 15 minutes
+    maxAge: durationMinutes * 60 * 1000, // 15 minutes
     ...(process.env.NODE_ENV === "production"
       ? { domain: ".skillsorbit.in" }
       : {}), // localhost me domain set mat karo

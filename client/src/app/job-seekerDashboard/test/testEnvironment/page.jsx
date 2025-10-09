@@ -30,7 +30,6 @@ export default function TestPage() {
   const { startRecording } = useRecordingStore();
   const recorderRef = useRef(null);
   const streamRef = useRef(null);
-  const chunksRef = useRef([]);
   const addChunk = useRecordingStore.getState().addChunk;
 
   // Check if instructions were already shown
@@ -87,7 +86,7 @@ export default function TestPage() {
         if (newTime <= 0) {
           clearInterval(timerId);
           // Time's up - redirect to submit page
-          window.location.href = "/userDashboard/test/submit";
+          window.location.href = "/job-seekerDashboard/test/submit";
           return 0;
         }
         return newTime;
@@ -159,7 +158,7 @@ export default function TestPage() {
           "Exiting fullscreen is not allowed. Your test will be automatically submitted after this action."
         );
         setTimeout(() => {
-          window.location.href = "/userDashboard/test/submit";
+          window.location.href = "/job-seekerDashboard/test/submit";
         }, 2000);
       }
       setIsFullscreen(!!document.fullscreenElement);

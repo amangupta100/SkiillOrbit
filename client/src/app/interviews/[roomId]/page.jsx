@@ -10,7 +10,12 @@ import { toast } from "sonner";
 import { FaCrown } from "react-icons/fa";
 import { IoInformation } from "react-icons/io5";
 import { IoIosNotificationsOutline } from "react-icons/io";
-
+import {
+  Tooltip,
+  TooltipTrigger,
+  TooltipContent,
+  TooltipProvider,
+} from "@/components/ui/tooltip"; // ✅ import your custom tooltip
 // 🔹 new imports
 import ParticipantCard from "@/components/recruiterDashboard/Interview/session/ParticipantCard";
 import ControlsBar from "@/components/recruiterDashboard/Interview/session/ControlsBar";
@@ -265,63 +270,93 @@ export default function Room({ params }) {
       <audio ref={audioRef} src="/interview_enter.mp3" preload="auto" />
 
       {/* header */}
-      <div className="h-12 relative flex items-center justify-between px-4 border-b-2 border-zinc-300">
-        <div className="flex gap-2 items-center justify-center">
-          <span className="text-sm font-mono">{time.toLocaleTimeString()}</span>
-          <h1 className="text-lg">|</h1>
-          <span
-            className="text-sm font-medium flex items-center gap-3 cursor-pointer hover:text-gray-600"
-            onClick={handleCopy}
-          >
-            <span className="font-mono">{roomId}</span>
-            {copy ? (
-              <LuCopyCheck className="w-4 h-4" />
-            ) : (
-              <Copy className="w-4 h-4" />
+      <TooltipProvider>
+        <div className="h-12 relative flex items-center justify-between px-4 border-b-2 border-zinc-300 bg-white">
+          {/* === Left Section: Time & Room ID === */}
+          <div className="flex gap-2 items-center justify-center">
+            <span className="text-sm font-mono">
+              {time.toLocaleTimeString()}
+            </span>
+            <h1 className="text-lg">|</h1>
+
+            {/* Tooltip for Copy Room ID */}
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span
+                  className="text-sm font-medium flex items-center gap-3 cursor-pointer hover:text-gray-600"
+                  onClick={handleCopy}
+                >
+                  <span className="font-mono">{roomId}</span>
+                  {copy ? (
+                    <LuCopyCheck className="w-4 h-4 text-green-500" />
+                  ) : (
+                    <Copy className="w-4 h-4" />
+                  )}
+                </span>
+              </TooltipTrigger>
+              <TooltipContent side="bottom">Copy Room ID</TooltipContent>
+            </Tooltip>
+          </div>
+
+          {/* === Right Section: Controls === */}
+          <div className="flex items-center gap-2">
+            {/* 🔹 Host notification */}
+            {participants?.find((p) => p.isHost) && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <div className="relative cursor-pointer">
+                    <IoIosNotificationsOutline
+                      onClick={() => setNotf(!notif)}
+                      className="w-6 h-6 text-blue-500"
+                    />
+                    {/* Optional red dot indicator */}
+                    {/* <div className="w-3 h-3 bg-red-500 rounded-full absolute -top-1 -right-1 animate-pulse" /> */}
+                  </div>
+                </TooltipTrigger>
+                <TooltipContent side="bottom">Notifications</TooltipContent>
+              </Tooltip>
             )}
-          </span>
-        </div>
 
-        <div className="flex items-center gap-2">
-          {/* 🔹 Host notification */}
-          {participants?.find((p) => p.isHost) && (
-            <div className="relative">
-              <IoIosNotificationsOutline
-                onClick={() => setNotf(!notif)}
-                className="w-6 h-6 text-blue-500"
-              />
-              {/* <div className="w-3 h-3 bg-red-500 rounded-full absolute -top-1 -right-1 animate-pulse" /> */}
-            </div>
+            {/* ℹ️ Info Sidebar Toggle */}
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <IoInformation
+                  onClick={() => setShowSidebar((s) => !s)}
+                  className="bg-gray-200 border border-zinc-300 w-8 h-8 text-black hover:bg-gray-500/40 rounded-lg cursor-pointer"
+                />
+              </TooltipTrigger>
+              <TooltipContent side="bottom">Meeting Information</TooltipContent>
+            </Tooltip>
+
+            {/* 📞 Leave Meeting */}
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  size="icon"
+                  variant="destructive"
+                  className="cursor-pointer"
+                  onClick={() => {
+                    exitKioskMode();
+                    router.replace("/interviews");
+                  }}
+                >
+                  <PhoneOff />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom">Leave Meeting</TooltipContent>
+            </Tooltip>
+          </div>
+
+          {/* 🧾 Notifications Popup */}
+          {notif && (
+            <Notifications
+              notiBox={notif}
+              logs={monitorLogs}
+              setnotBox={setNotf}
+            />
           )}
-
-          <IoInformation
-            onClick={() => setShowSidebar((s) => !s)}
-            className="bg-gray-200 border border-zinc-300 w-8 h-8 text-black hover:bg-gray-500/40 rounded-lg"
-          />
-          <Button
-            size="icon"
-            variant="destructive"
-            className="cursor-pointer"
-            onClick={() => {
-              // exit kiosk mode first
-              exitKioskMode();
-
-              // then redirect
-              router.replace("/interviews");
-            }}
-          >
-            <PhoneOff />
-          </Button>
         </div>
-
-        {notif && (
-          <Notifications
-            notiBox={notif}
-            logs={monitorLogs}
-            setnotBox={setNotf}
-          />
-        )}
-      </div>
+      </TooltipProvider>
 
       {/* main */}
       <div className="flex flex-1 overflow-hidden">

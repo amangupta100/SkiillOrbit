@@ -16,11 +16,11 @@ export async function middleware(request) {
   const int_sessionId = cookies.get("sessionID")?.value;
 
   if (
-    pathname === "/userDashboard/interviewPreparation/interview" &&
+    pathname === "/job-seekerDashboard/interviewPreparation/interview" &&
     !int_sessionId
   ) {
     return NextResponse.redirect(
-      new URL("/userDashboard/interviewPreparation", request.url)
+      new URL("/job-seekerDashboard/interviewPreparation", request.url)
     );
   }
 
@@ -30,17 +30,26 @@ export async function middleware(request) {
 
   // 1. Protect /test/submit and /test/verifyIdentity
   if (
-    pathname.startsWith("/userDashboard/test/verifyIdentity") ||
-    pathname.startsWith("/userDashboard/test/testEnvironment")
+    pathname.startsWith("/job-seekerDashboard/test/verifyIdentity") ||
+    pathname.startsWith("/job-seekerDashboard/test/testEnvironment")
   ) {
     if (!td) {
-      return NextResponse.redirect(new URL("/userDashboard/test", request.url));
+      return NextResponse.redirect(
+        new URL("/job-seekerDashboard/test", request.url)
+      );
     }
+  }
+
+  if (
+    pathname === "/job-seekerDashboard/test/testEnvironment" &&
+    !cookies.get("t_id")?.value
+  ) {
+    return NextResponse.redirect(new URL("/job-seekerDashboard/test"));
   }
 
   if (accessToken && !refreshToken) {
     if (
-      pathname.startsWith("/userDashboard") ||
+      pathname.startsWith("/job-seekerDashboard") ||
       pathname.startsWith("/recruiterDashboard")
     ) {
       response.cookies.delete("accessToken");
@@ -67,7 +76,7 @@ export async function middleware(request) {
 
   // 3. Block unauthenticated access to protected routes
   if (!refreshToken && !accessToken) {
-    if (pathname.startsWith("/userDashboard")) {
+    if (pathname.startsWith("/job-seekerDashboard")) {
       return NextResponse.redirect(new URL("/login/job-seeker", request.url));
     }
     if (pathname.startsWith("/recruiterDashboard")) {
@@ -88,13 +97,15 @@ export async function middleware(request) {
         pathname.startsWith("/register/recruiter") ||
         pathname.startsWith("/login/recruiter"))
     ) {
-      return NextResponse.redirect(new URL("/userDashboard", request.url));
+      return NextResponse.redirect(
+        new URL("/job-seekerDashboard", request.url)
+      );
     }
 
     // BLOCK recruiters from job-seeker routes
     if (
       role === "recruiter" &&
-      (pathname.startsWith("/userDashboard") ||
+      (pathname.startsWith("/job-seekerDashboard") ||
         pathname.startsWith("/register/job-seeker") ||
         pathname.startsWith("/login/job-seeker"))
     ) {
@@ -134,7 +145,7 @@ export async function middleware(request) {
   ) {
     return NextResponse.redirect(
       new URL(
-        role === "recruiter" ? "/recruiterDashboard" : "/userDashboard",
+        role === "recruiter" ? "/recruiterDashboard" : "/job-seekerDashboard",
         request.url
       )
     );
@@ -144,7 +155,7 @@ export async function middleware(request) {
 
 export const config = {
   matcher: [
-    "/userDashboard/:path*",
+    "/job-seekerDashboard/:path*",
     "/recruiterDashboard/:path*",
     "/login/:path*",
     "/register/:path*",

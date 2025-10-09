@@ -247,6 +247,16 @@ export const generatePhonemeData = (text, speechRate = 1.0) => {
     currentTime += duration;
   }
 
+  // Append a final silence to ensure lips close at the end
+  const finalSilenceDuration = 0.1; // Short buffer to close mouth
+  phonemeData.push({
+    phoneme: "sil",
+    viseme: "0",
+    startTime: currentTime,
+    endTime: currentTime + finalSilenceDuration,
+    duration: finalSilenceDuration,
+  });
+
   return phonemeData;
 };
 

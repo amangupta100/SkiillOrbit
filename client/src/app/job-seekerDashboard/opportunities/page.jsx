@@ -302,7 +302,7 @@ const Page = () => {
                       <div className="flex min-w-auto gap-4 items-center">
                         <Button
                           onClick={() =>
-                            (window.location.href = `/userDashboard/opportunities/${job._id}`)
+                            (window.location.href = `/job-seekerDashboard/opportunities/${job._id}`)
                           }
                           className="text-black bg-white border-[1.6px] hover:bg-slate-200/70 cursor-pointer border-zinc-200 "
                         >

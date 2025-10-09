@@ -11,15 +11,17 @@ import {
 } from "@react-three/drei";
 import * as THREE from "three";
 
-// ---------- Viseme Map (numbers from TTS output) ----------
+// ---------- Viseme Map (balanced, reduced pout) ----------
 const VISEME_MAP = {
-  0: { jawOpen: 0.1, mouthClose: 0.9 }, // silence
-  2: { jawOpen: 0.8, mouthClose: 0.1 }, // "ae"
-  4: { jawOpen: 0.6, mouthClose: 0.2 }, // "eh"
-  12: { jawOpen: 0.5, mouthClose: 0.2 }, // "hh"
-  21: { mouthClose: 1 }, // "m", "n"
-  // ⚡️ add more viseme numbers as needed for your TTS system
-  neutral: { jawOpen: 0.1, mouthClose: 0.1 },
+  0: { jawOpen: 0.05, mouthClose: 0.9, mouthPucker: 0.0 }, // silence
+  2: { jawOpen: 0.75, mouthClose: 0.15, mouthPucker: 0.05 }, // "ae"
+  4: { jawOpen: 0.55, mouthClose: 0.25, mouthPucker: 0.05 }, // "eh"
+  7: { jawOpen: 0.4, mouthClose: 0.2, mouthPucker: 0.03 }, // "uw"/"w" (less round)
+  8: { jawOpen: 0.45, mouthClose: 0.25, mouthPucker: 0.05 }, // "ow" (slightly round)
+  12: { jawOpen: 0.4, mouthClose: 0.3, mouthPucker: 0.0 }, // "hh"
+  13: { jawOpen: 0.4, mouthClose: 0.3, mouthPucker: 0.0 }, // "r" softened
+  21: { jawOpen: 0.1, mouthClose: 1.0, mouthPucker: 0.0 }, // "m","b","p"
+  neutral: { jawOpen: 0.1, mouthClose: 0.1, mouthPucker: 0.0 },
 };
 
 // ---------- Helper: Fit object into view ----------
@@ -43,7 +45,7 @@ function useFitCamera(objectRef) {
 }
 
 // ---------- GLB Model ----------
-function GLBModel({ phonemeTimings, onSpeakComplete }) {
+function GLBModel({ phonemeTimings = [], onSpeakComplete }) {
   const group = useRef();
   const { scene, animations } = useGLTF("/models/Untitled88.glb");
   const { actions } = useAnimations(animations, group);
@@ -55,6 +57,9 @@ function GLBModel({ phonemeTimings, onSpeakComplete }) {
     elapsed: 0,
   });
 
+  // Lerp speed for smoothing (tweak this for snappier or softer transitions)
+  const LERP_SPEED = 0.13;
+
   // Blink state
   const blinkState = useRef({
     value: 0,
@@ -62,8 +67,9 @@ function GLBModel({ phonemeTimings, onSpeakComplete }) {
     nextBlink: Date.now() + 2000,
   });
 
-  // Collect morph targets
+  // Collect morph targets and neutralize any baked-in values
   useEffect(() => {
+    // center model
     const box = new THREE.Box3().setFromObject(scene);
     const center = box.getCenter(new THREE.Vector3());
     scene.position.sub(center);
@@ -78,17 +84,36 @@ function GLBModel({ phonemeTimings, onSpeakComplete }) {
             index: dict[key],
           });
         }
+        // Zero out influences to avoid baked-in pout / extremes
+        if (child.morphTargetInfluences && child.morphTargetInfluences.length) {
+          for (let i = 0; i < child.morphTargetInfluences.length; i++) {
+            child.morphTargetInfluences[i] = 0;
+          }
+        }
       }
+    });
+
+    // Ensure common mouth-related morph keys exist (so updates won't crash)
+    [
+      "jawOpen",
+      "mouthClose",
+      "mouthPucker",
+      "eyeBlinkLeft",
+      "eyeBlinkRight",
+      "blink",
+    ].forEach((k) => {
+      morphTargets.current[k] = morphTargets.current[k] || [];
     });
   }, [scene]);
 
-  // Start speech timing
+  // Start speech timing when phoneme timings arrive
   useEffect(() => {
-    if (phonemeTimings.length) {
+    if (phonemeTimings && phonemeTimings.length) {
       startTime.current = performance.now();
     }
   }, [phonemeTimings]);
 
+  // Play animations if any exist
   useEffect(() => {
     if (actions && Object.keys(actions).length > 0) {
       Object.values(actions).forEach((action) => {
@@ -147,25 +172,44 @@ function GLBModel({ phonemeTimings, onSpeakComplete }) {
         elapsed,
       });
 
-      // 🔹 Smooth transition
+      // Smoothly update all keys present in neutral map (jawOpen, mouthClose, mouthPucker)
       for (let key in VISEME_MAP["neutral"]) {
-        const value = targetViseme[key] || 0;
+        const value = targetViseme[key] ?? VISEME_MAP["neutral"][key] ?? 0;
         morphTargets.current[key]?.forEach(({ mesh, index }) => {
           mesh.morphTargetInfluences[index] = THREE.MathUtils.lerp(
             mesh.morphTargetInfluences[index] || 0,
             value,
-            0.13
+            LERP_SPEED
           );
         });
       }
 
-      // End check
-      if (
-        elapsed > phonemeTimings[phonemeTimings.length - 1].endTime + 0.5 &&
-        startTime.current
-      ) {
+      // End check: use slightly tighter threshold to avoid long post-speech pucker
+      const lastEnd = phonemeTimings[phonemeTimings.length - 1].endTime;
+      if (elapsed > lastEnd + 0.25 && startTime.current) {
         startTime.current = null;
+        // gently return mouth to neutral
+        for (let key in VISEME_MAP["neutral"]) {
+          morphTargets.current[key]?.forEach(({ mesh, index }) => {
+            mesh.morphTargetInfluences[index] = THREE.MathUtils.lerp(
+              mesh.morphTargetInfluences[index] || 0,
+              VISEME_MAP["neutral"][key] || 0,
+              0.2
+            );
+          });
+        }
         onSpeakComplete?.();
+      }
+    } else {
+      // If no active phonemes, ensure mouth slowly returns to neutral
+      for (let key in VISEME_MAP["neutral"]) {
+        morphTargets.current[key]?.forEach(({ mesh, index }) => {
+          mesh.morphTargetInfluences[index] = THREE.MathUtils.lerp(
+            mesh.morphTargetInfluences[index] || 0,
+            VISEME_MAP["neutral"][key] || 0,
+            0.06
+          );
+        });
       }
     }
   });
@@ -173,12 +217,21 @@ function GLBModel({ phonemeTimings, onSpeakComplete }) {
   return (
     <group ref={group} dispose={null}>
       <primitive object={scene} />
+      {/* Debug overlay can be enabled if needed */}
+      {/* <Html position={[0, 1.5, 0]}>
+        <div style={{ background: "rgba(0,0,0,0.6)", padding: 8, color: "#fff" }}>
+          Viseme: {debugInfo.currentViseme} <br /> Elapsed: {debugInfo.elapsed.toFixed(2)}
+        </div>
+      </Html> */}
     </group>
   );
 }
 
 // ---------- Wrapper ----------
-export default function InterviewerAvatarWrapper({ phonemeTimings }) {
+export default function InterviewerAvatarWrapper({
+  phonemeTimings,
+  onSpeakComplete,
+}) {
   const modelRef = useRef();
   const { controls } = useFitCamera(modelRef);
 
@@ -197,7 +250,10 @@ export default function InterviewerAvatarWrapper({ phonemeTimings }) {
               </Html>
             }
           >
-            <GLBModel phonemeTimings={phonemeTimings} />
+            <GLBModel
+              phonemeTimings={phonemeTimings}
+              onSpeakComplete={onSpeakComplete}
+            />
           </React.Suspense>
         </group>
         <OrbitControls

@@ -72,7 +72,7 @@ export default function InterviewTypeSelection() {
       const { data, success: succ, message } = req.data;
 
       if (succ) {
-        window.location.href = `/userDashboard/interviewPreparation/interview`;
+        window.location.href = `/job-seekerDashboard/interviewPreparation/interview`;
       } else {
         toast.error(message);
       }
@@ -102,7 +102,7 @@ export default function InterviewTypeSelection() {
       const { data, success: succ, message } = req.data;
 
       if (succ) {
-        window.location.href = `/userDashboard/interviewPreparation/interview`;
+        window.location.href = `/job-seekerDashboard/interviewPreparation/interview`;
       } else {
         toast.error(message);
       }
@@ -131,7 +131,7 @@ export default function InterviewTypeSelection() {
       const { data, success: succ, message } = req.data;
 
       if (succ) {
-        window.location.href = `/userDashboard/interviewPreparation/interview`;
+        window.location.href = `/job-seekerDashboard/interviewPreparation/interview`;
       } else {
         toast.error(message);
       }
@@ -160,7 +160,7 @@ export default function InterviewTypeSelection() {
       const { data, success: succ, message } = req.data;
 
       if (succ) {
-        window.location.href = `/userDashboard/interviewPreparation/interview`;
+        window.location.href = `/job-seekerDashboard/interviewPreparation/interview`;
       } else {
         toast.error(message);
       }
@@ -241,7 +241,7 @@ export default function InterviewTypeSelection() {
       }
       try {
         setLoading((prev) => ({ ...prev, skills: true }));
-        const response = await API.get("/job-seeker/getSkills", {
+        const response = await API.get("/job-seeker/skills/getSkills", {
           params: { type: "skills", q: query },
         });
 

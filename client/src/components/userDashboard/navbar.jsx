@@ -11,8 +11,8 @@ export function DashboardNavbar() {
   const pathname = usePathname();
 
   const paths = [
-    "/userDashboard/test/testEnvironment",
-    "/userDashboard/interviewPreparation/interview",
+    "/job-seekerDashboard/test/testEnvironment",
+    "/job-seekerDashboard/interviewPreparation/interview",
     "/register/job-seeker/profileSetup",
     "/register/recruiter/profileSetup",
   ];

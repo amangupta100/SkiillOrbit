@@ -1,13 +1,8 @@
-"use client"
-import API from '@/utils/interceptor'
-import { useParams } from 'next/navigation'
-import React, { useEffect, useState } from 'react'
-import {
-  Chart as ChartJS,
-  ArcElement,
-  Tooltip,
-  Legend
-} from "chart.js";
+"use client";
+import API from "@/utils/interceptor";
+import { useParams } from "next/navigation";
+import React, { useEffect, useState } from "react";
+import { Chart as ChartJS, ArcElement, Tooltip, Legend } from "chart.js";
 import { Doughnut } from "react-chartjs-2";
 
 ChartJS.register(ArcElement, Tooltip, Legend);
@@ -68,7 +63,12 @@ const Page = () => {
     fetchData();
   }, [id]);
 
-  if (!id) return <div className=''>Please apply to an opportunity to get skill matched</div>;
+  if (!id)
+    return (
+      <div className="">
+        Please apply to an opportunity to get skill matched
+      </div>
+    );
 
   return (
     <div>
@@ -79,14 +79,14 @@ const Page = () => {
             You need to test these skills to stand out from others.
           </p>
           <a
-            href="/userDashboard/test"
+            href="/job-seekerDashboard/test"
             className="inline-block mt-3 px-4 py-2 bg-[#2A956B] text-white rounded hover:bg-[#2A956B]/90 transition"
           >
             Go to Skill Tests
           </a>
         </div>
       ) : (
-        <AverageScoreDoughnut 
+        <AverageScoreDoughnut
           userScore={75} // Replace with actual user score from your data
           benchmarkScore={100} // Replace with actual benchmark score from your data
         />

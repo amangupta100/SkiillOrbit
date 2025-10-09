@@ -59,7 +59,7 @@ const page = () => {
 
         // ✅ Delay navigation (e.g., 1.5s)
         setTimeout(() => {
-          router.push("/userDashboard");
+          router.push("/job-seekerDashboard");
           router.refresh();
         }, 600);
       } else {

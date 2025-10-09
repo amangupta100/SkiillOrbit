@@ -47,17 +47,14 @@ export const useTTSWebsocket = () => {
 
       utterance.onstart = () => {
         setSpeaking(true);
-        setPaused(false);
-
-        // generate approximate phoneme data
         const phonemeData = generatePhonemeData(text, rate);
-        onPhonemes?.(phonemeData);
+        // Delay for speech engine warm-up
+        setTimeout(() => onPhonemes?.(phonemeData), 200);
       };
 
       utterance.onend = () => {
         setSpeaking(false);
-        setPaused(false);
-        onEnd?.();
+        onEnd?.(); // Call the onEnd callback to allow parent to reset lip sync
       };
 
       utterance.onboundary = (event) => {

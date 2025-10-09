@@ -2,6 +2,8 @@
 import React, { useEffect, useRef, useState } from "react";
 import { IoMdClose } from "react-icons/io";
 import { IoIosSend } from "react-icons/io";
+import Empty from "@/assests/undraw_no-data_ig65.svg";
+import Image from "next/image";
 
 const Messages = ({ setshowMessSidebar, socketRef, roomId, userName }) => {
   const [messages, setMessages] = useState([]);
@@ -79,7 +81,7 @@ const Messages = ({ setshowMessSidebar, socketRef, roomId, userName }) => {
             <div className="w-6 h-6 border-4 border-gray-300 border-t-blue-500 rounded-full animate-spin"></div>
             <span className="ml-2">Loading messages...</span>
           </div>
-        ) : (
+        ) : messages.length > 0 ? (
           <>
             {messages.map((m, i) => (
               <div
@@ -99,6 +101,11 @@ const Messages = ({ setshowMessSidebar, socketRef, roomId, userName }) => {
             ))}
             <div ref={chatEndRef} />
           </>
+        ) : (
+          <div className="w-full h-full flex flex-col justify-center items-center">
+            <Image src={Empty} width={200} alt="Empty" height={200} />
+            <h1 className="mt-5">No messages found...</h1>
+          </div>
         )}
       </div>
 
@@ -114,9 +121,9 @@ const Messages = ({ setshowMessSidebar, socketRef, roomId, userName }) => {
         />
         <button
           onClick={sendMessage}
-          className="p-2 cursor-pointer bg-blue-500 text-white rounded-lg hover:bg-blue-600"
+          className="p-1 cursor-pointer bg-blue-500 text-white rounded-full hover:bg-blue-600"
         >
-          <IoIosSend />
+          <IoIosSend className="text-2xl" />
         </button>
       </div>
     </div>
