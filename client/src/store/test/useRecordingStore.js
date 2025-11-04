@@ -15,7 +15,11 @@ export const useRecordingStore = create(
       isRecording: false,
       submissionStatus: null,
       recordingId: null,
+      // NEW: Hold runtime objects (not persisted)
+      recorder: null,
+      stream: null,
 
+      // UPDATED: Rename to startRecordingState for clarity, but keep old name for backward compat
       startRecording: async () => {
         await clearVideoChunks();
         set({
@@ -25,11 +29,26 @@ export const useRecordingStore = create(
         });
       },
 
+      // NEW: Action to set recorder/stream from initializeRecording
+      initializeMedia: (recorder, stream) => {
+        set({ recorder, stream });
+      },
+
+      // UPDATED: Now stops the actual recorder/stream
       stopRecording: () => {
-        if (typeof window !== "undefined" && window.recorder) {
-          window.recorder.stop();
+        const { recorder, stream } = get();
+        if (recorder && recorder.state === "recording") {
+          recorder.stop();
         }
-        set({ isRecording: false });
+        if (stream) {
+          stream.getTracks().forEach((track) => track.stop());
+        }
+        // NEW: Null them out to prevent reuse
+        set({
+          recorder: null,
+          stream: null,
+          isRecording: false,
+        });
       },
 
       addChunk: async (chunk) => {
@@ -39,12 +58,22 @@ export const useRecordingStore = create(
         await saveVideoChunks(updated);
       },
 
+      // UPDATED: Clear media objects too
       clearRecording: async () => {
         await clearVideoChunks();
+        const { recorder, stream } = get();
+        if (recorder && recorder.state === "recording") {
+          recorder.stop();
+        }
+        if (stream) {
+          stream.getTracks().forEach((track) => track.stop());
+        }
         set({
           isRecording: false,
           submissionStatus: null,
           recordingId: null,
+          recorder: null,
+          stream: null,
         });
       },
 
@@ -60,6 +89,9 @@ export const useRecordingStore = create(
             useEvaluationStore.getState();
 
           startSubmission(); // Start loader (UI feedback)
+
+          // UPDATED: Ensure stopped before submit (defensive)
+          get().stopRecording();
 
           const chunks = await loadVideoChunks();
           if (!chunks || chunks.length === 0) {
@@ -97,6 +129,7 @@ export const useRecordingStore = create(
     {
       name: "recording-store",
       partialize: (state) => {
+        // UPDATED: Exclude recorder/stream from persistence (they're runtime only)
         const { isRecording, submissionStatus, recordingId } = state;
         return { isRecording, submissionStatus, recordingId };
       },

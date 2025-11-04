@@ -5,6 +5,7 @@ const {
   genQuestionContr,
   genTest,
   testSubmit,
+  getaTestDet,
 } = require("../../controllers/user/testController");
 const { genTestToken } = require("../../helpers/test/genTestDetailsToken");
 const authMiddleware = require("../../helpers/common/authMiddleware");
@@ -18,6 +19,7 @@ router.get("/gettestDet", authMiddleware, testDetMidd, (req, res) => {
 });
 
 router.post("/genTest", authMiddleware, testDetMidd, genTest);
-router.get("/submitTest", authMiddleware, testSubmit);
+router.post("/submitTest", authMiddleware, testSubmit);
+router.get("/getTestDetails/:id", authMiddleware, getaTestDet);
 
 module.exports = router;

@@ -1,4 +1,8 @@
+// Updated interview_socket.js
+const axios = require("axios");
+
 const rooms = new Map();
+const roomMonitoring = new Map(); // roomId -> { hostId: Set<targetParticipantIds> }
 
 function updateUserCount(roomId, interviewNamespace) {
   const room = rooms.get(roomId);
@@ -18,12 +22,14 @@ function handleLeave(socket, roomId, interviewNamespace) {
   if (room.host.socketId === socket.id) {
     // host left -> close room
     rooms.delete(roomId);
+    // Clean up monitoring
+    roomMonitoring.delete(roomId);
     socket.to(roomId).emit("room-closed");
-    console.log(`Host left, room ${roomId} closed`);
   } else {
     if (room.participants.size === 0 && !room.host) {
       rooms.delete(roomId);
-      console.log(`Room ${roomId} deleted (empty)`);
+      roomMonitoring.delete(roomId);
+      `Room ${roomId} deleted (empty)`;
     } else {
       updateUserCount(roomId, interviewNamespace);
     }
@@ -48,7 +54,7 @@ function interview_Socket(io) {
   const interviewNamespace = io.of("/interview");
 
   interviewNamespace.on("connection", (socket) => {
-    console.log("Interview socket connected", socket.id);
+    "Interview socket connected", socket.id;
 
     /**
      * Create Room
@@ -67,11 +73,13 @@ function interview_Socket(io) {
         };
 
         rooms.set(roomId, room);
+        // Initialize monitoring for this room
+        roomMonitoring.set(roomId, new Map());
         socket.join(roomId);
-        console.log(`Room ${roomId} created by ${socket.id} (${userName})`);
+        `Room ${roomId} created by ${socket.id} (${userName})`;
       } else {
         // room already exists → just acknowledge
-        console.log(`Room ${roomId} already exists, skipping create`);
+        `Room ${roomId} already exists, skipping create`;
       }
 
       const members = [
@@ -145,7 +153,7 @@ function interview_Socket(io) {
       });
 
       updateUserCount(roomId, interviewNamespace);
-      console.log(`${userName} joined ${roomId}`);
+      `${userName} joined ${roomId}`;
     });
 
     socket.on("send-message", ({ roomId, userName, message }) => {
@@ -170,41 +178,147 @@ function interview_Socket(io) {
       const room = rooms.get(roomId);
       if (!room) return;
 
-      console.log(targetId, roomId);
+      `[start-monitor] Request from ${socket.id} for target ${targetId} in room ${roomId}`;
 
-      // ✅ only host can request monitoring
-      if (room.host?.socketId === socket.id) {
-        interviewNamespace.to(targetId).emit("enable-monitor", { roomId });
-        console.log(`Monitoring started for ${targetId} in room ${roomId}`);
+      // ✅ Only host can request monitoring
+      if (room.host?.socketId !== socket.id) {
+        ("[start-monitor] Non-host attempted monitoring");
+        return;
+      }
+
+      // Get or init host's monitoring set
+      const roomMonitorData = roomMonitoring.get(roomId) || new Map();
+      let hostTargets = roomMonitorData.get(socket.id) || new Set();
+
+      const isCurrentlyMonitoring = hostTargets.has(targetId);
+
+      if (isCurrentlyMonitoring) {
+        // Toggle off
+        hostTargets.delete(targetId);
+        if (hostTargets.size === 0) {
+          roomMonitorData.delete(socket.id);
+        }
+        roomMonitoring.set(roomId, roomMonitorData);
+
+        // Notify client: stop
+        socket.emit("monitoring-updated", { targetId, action: "stop" });
+
+        // 🔹 NEW: Notify participant to stop emitting screenshots and events
+        interviewNamespace
+          .to(targetId)
+          .emit("disable-monitor", { roomId, monitorId: socket.id });
+
+        `[start-monitor] Stopped monitoring ${targetId} in room ${roomId}`;
+      } else {
+        // Start monitoring
+        hostTargets.add(targetId);
+        roomMonitorData.set(socket.id, hostTargets);
+        roomMonitoring.set(roomId, roomMonitorData);
+
+        // Notify participant to enable event emission (tab switches, screenshots, etc.)
+        interviewNamespace
+          .to(targetId)
+          .emit("enable-monitor", { roomId, monitorId: socket.id });
+
+        // Notify host client: start
+        socket.emit("monitoring-updated", { targetId, action: "start" });
+
+        `[start-monitor] Started monitoring ${targetId} in room ${roomId}`;
       }
     });
 
-    // 🔹 When a participant emits a monitor-event (tab switch, blur, focus, etc.)
-    socket.on("monitor-event", ({ roomId, socketId, event }) => {
+    socket.on("get-current-monitoring", ({ roomId }) => {
+      const room = rooms.get(roomId);
+      if (!room || room.host?.socketId !== socket.id) {
+        ("[get-current-monitoring] Unauthorized or room not found");
+        return;
+      }
+
+      const roomMonitorData = roomMonitoring.get(roomId);
+      const hostTargets = roomMonitorData?.get(socket.id) || new Set();
+
+      socket.emit("current-monitoring", {
+        monitoredIds: Array.from(hostTargets),
+        roomId,
+      });
+
+      `[get-current-monitoring] Sent ${hostTargets.size} targets to host ${socket.id} in room ${roomId}`;
+    });
+
+    // 🔹 UPDATED: When a participant emits a monitor-event (tab switch, blur, focus, screenshot, etc.)
+    socket.on("monitor-event", async ({ roomId, socketId, event }) => {
       const room = rooms.get(roomId);
       if (!room) {
         console.warn(`[monitor-event] Room not found: ${roomId}`);
         return;
       }
 
-      // ✅ Only forward events to the host of this room
-      if (room.host) {
-        const payload = {
-          socketId,
-          event,
-          time: new Date().toISOString(),
-        };
+      const roomMonitorData = roomMonitoring.get(roomId);
+      if (!roomMonitorData) return; // No monitoring active in this room
 
-        interviewNamespace
-          .to(room.host.socketId)
-          .emit("monitor-event", payload);
+      // Check if any host is monitoring this socketId
+      let isMonitored = false;
+      for (const [hostId, targets] of roomMonitorData.entries()) {
+        if (targets.has(socketId)) {
+          isMonitored = true;
+          const payload = {
+            socketId,
+            event,
+            time: new Date().toISOString(),
+          };
 
-        console.log(
-          `[monitor-event] Forwarded from participant ${socketId} to host ${room.host.socketId} in room ${roomId}:`,
-          payload
-        );
-      } else {
-        console.warn(`[monitor-event] No host found in room ${roomId}`);
+          // 🔹 NEW: Handle overlay detection for screenshot events
+          if (event.type === "screenshot") {
+            const base64Screenshot = event.data;
+            if (!base64Screenshot) {
+              console.warn(
+                `[monitor-event] Missing screenshot data from ${socketId}`
+              );
+              return;
+            }
+            try {
+              `[monitor-event] Processing screenshot for ${socketId}...`;
+              const apiBase =
+                process.env.API_BASE_URL2 || "http://localhost:8000";
+              const response = await axios.post(
+                `${apiBase}/overlay/detect`,
+                { screenshot: base64Screenshot },
+                {
+                  headers: {
+                    "X-Socket-ID": socketId,
+                    "Content-Type": "application/json",
+                  },
+                }
+              );
+              // Emit overlay result to host instead of raw event
+              interviewNamespace.to(hostId).emit("overlay-detection-result", {
+                socketId,
+                detected: response.data.detected,
+                processedScreenshotB64: response.data.processed_screenshot_b64,
+                coords: response.data.coords,
+              });
+              `[overlay-result] Forwarded detection result from ${socketId} to host ${hostId}: detected=${response.data.detected}`;
+              continue; // Skip raw forward for screenshots
+            } catch (err) {
+              console.error("[overlay-detection] Failed:", err);
+              // Emit error to host
+              interviewNamespace.to(hostId).emit("overlay-detection-error", {
+                socketId,
+                error: err.message,
+              });
+            }
+          } else {
+            // Forward non-screenshot events (tab switch, etc.)
+            interviewNamespace.to(hostId).emit("monitor-event", payload);
+          }
+
+          `[monitor-event] Forwarded from participant ${socketId} to host ${hostId} in room ${roomId}:`,
+            payload;
+        }
+      }
+
+      if (!isMonitored) {
+        `[monitor-event] Ignored (not monitored): ${socketId} in room ${roomId}`;
       }
     });
 
@@ -223,7 +337,7 @@ function interview_Socket(io) {
 
       // sirf host hi kar sakta hai
       if (room.host.socketId !== socket.id) {
-        console.log("Non-host tried to remove a participant");
+        ("Non-host tried to remove a participant");
         return;
       }
 
@@ -236,9 +350,7 @@ function interview_Socket(io) {
         // notify others
         interviewNamespace.to(roomId).emit("user-removed", { socketId });
         updateUserCount(roomId, interviewNamespace);
-        console.log(
-          `Participant ${socketId} removed by host in room ${roomId}`
-        );
+        `Participant ${socketId} removed by host in room ${roomId}`;
       }
     });
 

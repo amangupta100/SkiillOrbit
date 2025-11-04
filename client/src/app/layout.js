@@ -3,9 +3,9 @@ import { Toaster } from "@/components/ui/sonner";
 import LayoutContent from "./RootLayoutContent";
 
 export const metadata = {
-  title: "SkillOrbit",
+  title: "SkillsOrbit",
   description:
-    "A skill-first job platform where candidates must prove their abilities through real-time tests before applying.",
+    "A skill-first job boarding platform where candidates must prove their abilities through real-time tests before applying.",
   icons: {
     icon: "/icon.png",
   },

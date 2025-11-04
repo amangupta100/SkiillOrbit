@@ -15,21 +15,20 @@ import { useProgressSidebarStore } from "@/store/test/useProgressSidebar";
 import { AlignEndHorizontal } from "lucide-react";
 import { IoIosNotificationsOutline } from "react-icons/io";
 import { useNotificationStore } from "@/store/test/useNotification";
-import { toast } from "sonner";
 import { useRecordingStore } from "@/store/test/useRecordingStore";
 import useEvaluationStore from "@/store/test/useEvaluationState";
-import API from "@/utils/interceptor";
 import ButtonLoader from "@/utils/Loader";
+import { useRouter } from "next/navigation";
 
 export default function AppHeader({ questions = 0, isInstructionShown }) {
   const TIME_PER_QUESTION = 180; // 3 minutes per question in seconds
   const [remainingTime, setRemainingTime] = useState(0);
+  const router = useRouter();
   const [showTimer, setShowTimer] = useState(false);
   const { toggleSidebar } = useProgressSidebarStore();
   const { toggleContentVisibility } = useNotificationStore();
-  const { setLoading, setLoaderStatus, loaderStatus, loading } =
-    useEvaluationStore();
-  const { submitRecording, isRecording, stopRecording } = useRecordingStore();
+  const { setLoading, loading } = useEvaluationStore();
+  const { stopRecording } = useRecordingStore();
 
   useEffect(() => {
     const initializeTimer = () => {
@@ -112,11 +111,11 @@ export default function AppHeader({ questions = 0, isInstructionShown }) {
 
   const handleSubmit = async () => {
     setLoading(true);
-    Cookies.remove("isInstructionsShown");
-    Cookies.remove("tt");
-    await API.get("/job-seeker/tests/submitTest");
-    // Redirect to submit page
-    window.location.href = "/job-seekerDashboard/test/submit";
+    router.push("/job-seekerDashboard/test/submit");
+    setTimeout(() => {
+      Cookies.remove("isInstructionsShown");
+      Cookies.remove("tt");
+    }, 1500);
     stopRecording();
     setLoading(false);
   };

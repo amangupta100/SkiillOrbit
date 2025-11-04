@@ -1,6 +1,6 @@
 "use client";
 import { GoogleGenerativeAI } from "@google/generative-ai";
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import Editor, { loader } from "@monaco-editor/react";
 import {
   PieChart,
@@ -31,31 +31,24 @@ const COLORS = ["#0088FE", "#FF8042", "#FFBB28"];
 const DebugEvaluationPage = () => {
   const [evaluations, setEvaluations] = useState([]);
   const [error, setError] = useState(null);
-  const [questions, setQuestions] = useState([]);
   const [chartData, setChartData] = useState(null);
   const { submitRecording, isRecording, submissionStatus, recordingId } =
     useRecordingStore();
   const { setLoading, setLoaderStatus, loading, loaderStatus } =
     useEvaluationStore();
   const router = useRouter();
+  const submittedRef = useRef(false);
 
   console.log(evaluations);
 
   useEffect(() => {
     const handleSubmissionAndEvaluation = async () => {
+      if (submittedRef.current) return;
+      submittedRef.current = true;
+
       try {
         setLoading(true);
         setLoaderStatus("Submitting your answers...");
-
-        // const success = await submitRecording();
-        // console.log(success);
-        // // Step 1: Submit recording if no suspicious activity
-        // if (!isSuspicious) {
-        //   console.log("Recording submission status:", success);
-        //   if (!success) {
-        //     toast.error("Failed to submit recording");
-        //   }
-        // }
 
         // Check if evaluations already exist in session
         const cachedEvaluations = sessionStorage.getItem("evaluations");
@@ -66,17 +59,53 @@ const DebugEvaluationPage = () => {
 
         // If no cached evaluations, run evaluation
         setLoaderStatus("Evaluating your solutions...");
-        const { questions, answers } = getEvaluationData();
-        const evaluationResults = await evaluateAllAtOnce(questions, answers);
+        const flags = sessionStorage.getItem("flags");
+        if (flags) {
+          try {
+            setLoaderStatus("Submitting your session...");
+            const parsedFlags = JSON.parse(flags); // ✅ convert back to array/object
+            await API.post("/job-seeker/tests/submitTest", {
+              flags: parsedFlags,
+            });
 
-        const resp = await API.post();
+            sessionStorage.removeItem("flags");
+          } catch (err) {
+            toast.error(err.message);
+          }
+        } else {
+          const { questions, answers } = getEvaluationData();
+          const evaluationResults = await evaluateAllAtOnce(questions, answers);
 
-        // Store results in state and session
-        setEvaluations(evaluationResults);
-        sessionStorage.setItem(
-          "evaluations",
-          JSON.stringify(evaluationResults)
-        );
+          // Prepare submission data for backend
+          const uanswer = answers.map((a) => ({
+            code: a.code || "",
+          }));
+
+          const canswer = evaluationResults.map((r) => ({
+            code: r.answerCode || "",
+          }));
+
+          setLoaderStatus("Submitting your session...");
+
+          // ✅ Submit evaluated results to backend
+          const resp = await API.post("/job-seeker/tests/submitTest", {
+            uanswer,
+            canswer,
+          });
+
+          if (!resp.data?.success) {
+            toast.error("Failed to save test results");
+          } else {
+            toast.success("Test submitted successfully!");
+          }
+
+          // Store results in state and session
+          setEvaluations(evaluationResults);
+          sessionStorage.setItem(
+            "evaluations",
+            JSON.stringify(evaluationResults)
+          );
+        }
       } catch (error) {
         toast.error("Submission failed: " + error.message);
       } finally {
@@ -222,16 +251,15 @@ const DebugEvaluationPage = () => {
     }
   }, [evaluations]);
 
-  useEffect(() => {
-    return () => {
-      sessionStorage.removeItem("evaluations");
-      sessionStorage.removeItem("questions");
-      sessionStorage.removeItem("answers");
-      sessionStorage.removeItem("recording-store");
-      sessionStorage.removeItem("evaluation-store");
-      sessionStorage.removeItem("proctoringNotifications");
-    };
-  }, []);
+  const handleReturn = () => {
+    sessionStorage.removeItem("evaluations");
+    sessionStorage.removeItem("questions");
+    sessionStorage.removeItem("answers");
+    sessionStorage.removeItem("recording-store");
+    sessionStorage.removeItem("evaluation-store");
+    sessionStorage.removeItem("proctoringNotifications");
+    window.location.href = "/job-seekerDashboard/test";
+  };
 
   // Render results
   if (loading) {
@@ -251,10 +279,7 @@ const DebugEvaluationPage = () => {
     <div className="p-4">
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-xl font-bold">Test Results</h1>
-        <Button
-          className="hover:bg-black/70"
-          onClick={() => (window.location.href = "/job-seekerDashboard/test")}
-        >
+        <Button className="hover:bg-black/70" onClick={() => handleReturn()}>
           Return to Dashboard
         </Button>
       </div>

@@ -1,39 +1,40 @@
-"use client"
-import { Label } from "@/components/ui/label"
+"use client";
+import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectTrigger,
   SelectValue,
   SelectContent,
   SelectItem,
-} from "@/components/ui/select"
-import { Input } from "@/components/ui/input"
-import { Button } from "@/components/ui/button"
-import { useFilterModal } from "@/store/recruiter/filtermodal"
-import { X } from "lucide-react"
+} from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { useFilterModal } from "@/store/recruiter/filtermodal";
+import { X } from "lucide-react";
 
 export default function FilterModal() {
-  const {
-    isOpen,
-    closeModal,
-    filters,
-    setFilters,
-    resetFilters,
-    openModal,
-  } = useFilterModal()
+  const { isOpen, closeModal, filters, setFilters, resetFilters, openModal } =
+    useFilterModal();
 
   return (
     <div className="fixed inset-0 z-[1000] flex justify-center h-screen overflow-y-auto py-8 backdrop-blur-md bg-black/60">
       <div className="w-[90%] sm:w-[75%] md:w-[60%] lg:w-[35%] rounded-lg relative min-h-fit py-6 px-5 bg-white max-h-[90vh] overflow-y-auto">
-        <X onClick={() => closeModal(false)} className="absolute top-2 right-2 cursor-pointer" />
+        <X
+          onClick={() => closeModal()}
+          className="absolute top-2 right-2 cursor-pointer"
+        />
 
         <h1 className="text-center text-lg my-5 font-semibold">Filter Jobs</h1>
 
-       <div className="flex justify-end">
-         <Button variant="ghost" className="border-[1.6px] border-zinc-200 " onClick={resetFilters}>
+        <div className="flex justify-end">
+          <Button
+            variant="ghost"
+            className="border-[1.6px] border-zinc-200 "
+            onClick={resetFilters}
+          >
             Reset
           </Button>
-       </div>
+        </div>
 
         {/* Status */}
         <div className="space-y-1">
@@ -146,5 +147,5 @@ export default function FilterModal() {
         </div>
       </div>
     </div>
-  )
+  );
 }

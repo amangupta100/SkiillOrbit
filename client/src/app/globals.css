@@ -133,3 +133,35 @@
 * {
   font-family: "Outfit";
 }
+
+/* Modern minimal scrollbar */
+.modern-scroll::-webkit-scrollbar {
+  width: 8px;
+}
+
+.modern-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.modern-scroll::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, #cfcfcf, #a3a3a3);
+  border-radius: 8px;
+}
+
+.modern-scroll::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, #b4b4b4, #8f8f8f);
+}
+
+/* Firefox support */
+.modern-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: #a3a3a3 transparent;
+}
+
+:root {
+  --nav-background: 0 0% 100%;
+  --nav-foreground: 220 14% 25%;
+  --nav-active: 220 90% 56%;
+  --nav-center-bg: 220 14% 96%;
+  --nav-center-active: 220 90% 56%;
+}

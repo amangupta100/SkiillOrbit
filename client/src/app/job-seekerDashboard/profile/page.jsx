@@ -3,7 +3,6 @@ import API from "@/utils/interceptor";
 import Image from "next/image";
 import React, { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { CameraIcon, Edit, X } from "lucide-react";
 import {
   Tooltip,
   TooltipContent,
@@ -21,6 +20,7 @@ import { DashboardSkeleton } from "@/components/common/Skeleton/UserDashbNetRec"
 import ProfileSkeleton from "@/components/common/Skeleton/User/ProfilePage";
 import MediaPreviewModal from "@/components/userDashboard/profile/projectModal/MediaPreviewModal";
 import useAuthStore from "@/store/authStore";
+import { Badge } from "@/components/ui/badge";
 
 const PdfIcon = FaFilePdf;
 const WordIcon = FaFileWord;
@@ -364,17 +364,26 @@ const page = () => {
                 </div>
               </div>
 
-              <div className="flex-wrap flex mt-3 gap-5">
+              <div className="flex flex-col mt-3 gap-5">
                 {userDet?.education &&
                   userDet?.education.length > 0 &&
                   userDet?.education.map((edu, index) => {
                     return (
                       <div
                         key={index}
-                        className="py-2 px-4 rounded-lg max-w-fit flex flex-col"
+                        className="py-2 px-4 border-zinc-200 border-[1.6px] rounded-lg w-full flex flex-col"
                       >
-                        <h1> {edu?.institution} </h1>
-                        <h1> {edu?.degree} </h1>
+                        <h1 className="font-semibold text-lg">
+                          {" "}
+                          {edu?.institution}{" "}
+                        </h1>
+                        <Badge
+                          variant="secondary"
+                          className="border-[1.6px] border-zinc-300"
+                        >
+                          {" "}
+                          {edu?.degree}{" "}
+                        </Badge>
                         <hr
                           className={
                             `${userDet?.education.length == index - 1}`

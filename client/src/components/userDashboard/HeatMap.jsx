@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import CalHeatmap from "cal-heatmap";
 import Tooltip from "cal-heatmap/plugins/Tooltip";
 import Legend from "cal-heatmap/plugins/Legend";
@@ -10,6 +10,7 @@ import { toast } from "sonner";
 
 export default function ActivityHeatmap() {
   const calRef = useRef(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     async function fetchData() {
@@ -19,24 +20,25 @@ export default function ActivityHeatmap() {
         );
         const data = res.data?.data || [];
 
-        // Transform to CalHeatmap format: array of {date: Date, value: number}
         const parsed = data.map((d) => ({
-          date: new Date(d.date), // Keep as Date object
+          date: new Date(d.date),
           value: d.count,
         }));
 
         renderHeatmap(parsed);
       } catch (err) {
         toast.error(err.message);
+      } finally {
+        setLoading(false);
       }
     }
 
     function renderHeatmap(data) {
       if (calRef.current) {
-        calRef.current.destroy(); // cleanup before re-init
+        calRef.current.destroy();
       }
 
-      const specificStartDate = new Date("2025-09-20"); // fixed start
+      const specificStartDate = new Date("2025-09-20");
       specificStartDate.setHours(0, 0, 0, 0);
       const endDate = addYears(specificStartDate, 1);
 
@@ -44,7 +46,7 @@ export default function ActivityHeatmap() {
       cal.paint(
         {
           itemSelector: "#cal-heatmap",
-          range: 12, // 12 months
+          range: 12,
           date: { start: specificStartDate, end: endDate },
           data: { source: data, x: "date", y: "value" },
           domain: {
@@ -64,7 +66,7 @@ export default function ActivityHeatmap() {
             color: {
               type: "linear",
               domain: [0, 1],
-              range: ["#d1d5db", "#22c55e"], // grey → green
+              range: ["#d1d5db", "#22c55e"],
             },
           },
         },
@@ -72,13 +74,10 @@ export default function ActivityHeatmap() {
           [
             Tooltip,
             {
-              text: function (date, value) {
-                return (
-                  (value ? "some" : "No") +
-                  " activities on " +
-                  format(date, "dd MMM, yyyy")
-                );
-              },
+              text: (date, value) =>
+                (value ? "Some" : "No") +
+                " activities on " +
+                format(date, "dd MMM, yyyy"),
             },
           ],
           [
@@ -99,27 +98,39 @@ export default function ActivityHeatmap() {
 
     fetchData();
 
-    // Cleanup on unmount
     return () => {
-      if (calRef.current) {
-        calRef.current.destroy();
-      }
+      if (calRef.current) calRef.current.destroy();
     };
   }, []);
 
+  // Skeleton Loader (grid shimmer)
+  const SkeletonGrid = () => (
+    <div className="animate-pulse flex flex-wrap gap-2 mt-2">
+      {[...Array(180)].map((_, i) => (
+        <div
+          key={i}
+          className="w-4 h-4 bg-gray-300 rounded-sm"
+          style={{
+            opacity: Math.random() * 0.5 + 0.3, // random shade
+          }}
+        ></div>
+      ))}
+    </div>
+  );
+
   return (
     <div className="heatmap-container overflow-x-scroll">
-      <h2 className="text-lg font-semibold mb-2">Daily Activities</h2>
+      <h2 className="text-lg font-semibold mb-2">Your Activities</h2>
 
-      {/* horizontal scroll section */}
       <div className="pb-2">
-        <div className="inline-block">
-          <div id="cal-heatmap" className="mb-4"></div>
+        <div className="inline-block min-w-[800px]">
+          {loading ? (
+            <SkeletonGrid />
+          ) : (
+            <div id="cal-heatmap" className="mb-4"></div>
+          )}
         </div>
       </div>
-
-      {/* keep legend fixed under heading (doesn’t scroll away) */}
-      {/* <div id="legend" className="mt-2"></div> */}
 
       <style jsx>{`
         .heatmap-container {

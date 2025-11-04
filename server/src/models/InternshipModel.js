@@ -2,6 +2,16 @@ const mongoose = require("mongoose");
 
 const internshipSchema = new mongoose.Schema(
   {
+    company: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Company",
+      required: true,
+    },
+    createdBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Recruiter",
+      required: true,
+    },
     domain: {
       type: String,
       required: [true, "Internship domain is required"],
@@ -10,12 +20,20 @@ const internshipSchema = new mongoose.Schema(
     role: {
       type: String,
       required: [true, "Internship role is required"],
+      trim: true,
+    },
+    about: {
+      type: String,
+      required: [true, "Internship description is required"],
     },
     requiredSkills: {
       type: [String],
       required: [true, "At least one required skill is needed"],
     },
-    optionalSkills: [String],
+    optionalSkills: {
+      type: [String],
+      default: [],
+    },
     duration: {
       type: String,
       required: true,
@@ -47,15 +65,6 @@ const internshipSchema = new mongoose.Schema(
       enum: ["ALL", "25%", "50%", "75%", "100%"],
       default: "ALL",
     },
-    location: {
-      type: String,
-      enum: ["Remote", "Hybrid", "On-Site"],
-      required: true,
-    },
-    preferredJoiningDate: {
-      type: String,
-      required: true,
-    },
     mode: {
       type: String,
       enum: ["Part-Time", "Semi-Full-Time", "Full-Time"],
@@ -66,80 +75,81 @@ const internshipSchema = new mongoose.Schema(
       enum: ["Beginner", "Intermediate", "Expert"],
       required: true,
     },
-    about: {
+    location: {
+      type: String,
+      enum: ["Remote", "Hybrid", "On-Site"],
+      required: true,
+    },
+    preferredJoiningDate: {
       type: String,
       required: true,
     },
-    benefits: [String],
+    benefits: {
+      type: [String],
+      default: [],
+    },
     preferences: {
       GraduationYear: {
         type: Number,
         min: [2000, "Graduation year must be after 2000"],
-        max: [2030, "Graduation year must be before 2030"],
+        max: [2035, "Graduation year must be before 2035"],
+        validate: {
+          validator: function (v) {
+            return v == null || (v >= 2000 && v <= 2035);
+          },
+          message: "Graduation year must be between 2000 and 2035",
+        },
       },
       MinimumCGPA: {
         type: Number,
         min: [0, "CGPA cannot be negative"],
         max: [10, "CGPA cannot exceed 10"],
+        validate: {
+          validator: function (v) {
+            return v == null || (!isNaN(v) && v >= 0 && v <= 10);
+          },
+          message: "CGPA must be between 0 and 10",
+        },
       },
-      OtherPreferences: String,
+      OtherPreferences: { type: String, default: "" },
     },
-    createdBy: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "Recruiter",
-      required: true,
-    },
-    company: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "Company",
-      required: true,
-    },
+
     postedOn: {
       type: Date,
       default: Date.now,
     },
-    applicants: [
-      {
-        userId: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
-        status: {
-          type: String,
-          enum: ["pending", "interviewed", "rejected", "selected"],
-          default: "pending",
-        },
-        appliedAt: {
-          type: Date,
-          default: Date.now,
-        },
-      },
-    ],
     status: {
       type: String,
       enum: ["Active", "Closed"],
       default: "Active",
     },
+    // Reference to Application model
+    applications: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "Application",
+      },
+    ],
   },
-  {
-    timestamps: true,
-  }
+  { timestamps: true }
 );
 
-// 🔍 Text index for searching internships by title & skills
+// 🔍 Indexes for searching & filtering
 internshipSchema.index({
-  title: "text",
+  role: "text",
+  domain: "text",
+  about: "text",
   requiredSkills: "text",
   optionalSkills: "text",
 });
 
-// 📍 Frequently queried single-field indexes
 internshipSchema.index({ location: 1 });
 internshipSchema.index({ mode: 1 });
 internshipSchema.index({ experienceLevel: 1 });
 internshipSchema.index({ status: 1 });
-internshipSchema.index({ createdBy: 1 });
 internshipSchema.index({ company: 1 });
+internshipSchema.index({ createdBy: 1 });
 internshipSchema.index({ postedOn: -1 });
-
-// ⚡ Compound index: For dashboards / job feed (active internships by location sorted by date)
 internshipSchema.index({ status: 1, location: 1, postedOn: -1 });
 
 module.exports = mongoose.model("Internship", internshipSchema);

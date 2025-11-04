@@ -1,152 +1,25 @@
 "use client";
 import React, { useRef, useEffect, useState } from "react";
 import FaceOverlay from "@/components/userDashboard/FaceOverlay";
-import API2 from "@/utils/interceptor2";
 import useAuthStore from "@/store/authStore";
 import { toast } from "sonner";
 import API from "@/utils/interceptor";
 import { GoogleGenerativeAI } from "@google/generative-ai";
+import { useFaceDetection } from "@/components/userDashboard/testFunc/useFaceDetection";
 
 const genAI = new GoogleGenerativeAI("AIzaSyD9zE89oUuo-UBw4CPu4rLtZSQTx7bpDbE");
 const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
 
 export default function FaceCapture() {
   const videoRef = useRef(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const [faceAlignment, setFaceAlignment] = useState(null);
   const [isVerifying, setIsVerifying] = useState(false);
   const { user } = useAuthStore();
-  const [testData, setTestData] = useState(null);
   const [loadSts, setLoadSts] = useState("Verifying");
-
-  useEffect(() => {
-    let faceMesh;
-    let camera;
-    let isMounted = true;
-
-    const initFaceDetection = async () => {
-      try {
-        // Preload WASM
-        const wasmResponse = await fetch(
-          "https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh@0.4/face_mesh_solution_simd_wasm_bin.wasm"
-        );
-        const wasmBuffer = await wasmResponse.arrayBuffer();
-
-        // Load scripts
-        await Promise.all([
-          loadScript(
-            "https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh@0.4/face_mesh.js"
-          ),
-          loadScript(
-            "https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils@0.3/camera_utils.js"
-          ),
-        ]);
-
-        if (!isMounted) return;
-
-        // Initialize face mesh
-        faceMesh = new window.FaceMesh({
-          locateFile: (file) => {
-            if (file === "face_mesh_solution_simd_wasm_bin.wasm") {
-              return URL.createObjectURL(new Blob([wasmBuffer]));
-            }
-            return `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh@0.4/${file}`;
-          },
-        });
-
-        faceMesh.setOptions({
-          maxNumFaces: 1,
-          refineLandmarks: true,
-          minDetectionConfidence: 0.8,
-          minTrackingConfidence: 0.8,
-        });
-
-        faceMesh.onResults((results) => {
-          if (!isMounted || !results.multiFaceLandmarks?.[0]) {
-            setFaceAlignment(null);
-            return;
-          }
-
-          const landmarks = results.multiFaceLandmarks[0];
-
-          // Key points (using more stable landmarks)
-          const leftEye = landmarks[33]; // Left eye outer corner
-          const rightEye = landmarks[263]; // Right eye outer corner
-          const noseTip = landmarks[1]; // More stable nose tip
-          const chin = landmarks[152]; // Chin center
-          const leftMouth = landmarks[61]; // Mouth left corner
-          const rightMouth = landmarks[291]; // Mouth right corner
-
-          // 1. Face containment check (more tolerant bounds)
-          const isFullyVisible = [
-            leftEye,
-            rightEye,
-            noseTip,
-            chin,
-            leftMouth,
-            rightMouth,
-          ].every((p) => p.x > 0.1 && p.x < 0.9 && p.y > 0.1 && p.y < 0.9);
-
-          // Combined alignment check
-          const isAligned = isFullyVisible;
-
-          setFaceAlignment({
-            isAligned,
-            confidence: 1.0,
-            landmarks: {
-              leftEye,
-              rightEye,
-              noseTip,
-              chin,
-            },
-          });
-        });
-
-        // Initialize camera
-        camera = new window.Camera(videoRef.current, {
-          onFrame: async () => {
-            if (isMounted) await faceMesh.send({ image: videoRef.current });
-          },
-          width: 640,
-          height: 480,
-          facingMode: "user", // Ensures front camera
-        });
-
-        await camera.start();
-        setIsLoading(false);
-      } catch (err) {
-        console.error("Face detection error:", err);
-        setError("Please allow camera access and refresh the page");
-        setIsLoading(false);
-      }
-    };
-
-    const loadScript = (src) => {
-      return new Promise((resolve, reject) => {
-        const script = document.createElement("script");
-        script.src = src;
-        script.onload = resolve;
-        script.onerror = reject;
-        document.body.appendChild(script);
-      });
-    };
-
-    initFaceDetection();
-
-    return () => {
-      isMounted = false;
-      if (faceMesh?.close) faceMesh.close();
-      if (camera?.stop) camera.stop();
-      document
-        .querySelectorAll('script[src*="mediapipe"]')
-        .forEach((el) => el.remove());
-    };
-  }, []);
+  const { faceAlignment, isLoading, error } = useFaceDetection(videoRef);
 
   const handleVerify = async () => {
     if (!faceAlignment?.isAligned || !videoRef.current) {
-      console.warn("Face not aligned or video reference missing");
+      toast.warning("Face not aligned or video reference missing");
       return;
     }
 
@@ -201,7 +74,7 @@ export default function FaceCapture() {
       const prompt = `
         Generate ${questionCount} debugging questions for skills: ${
         skills.length ? skills.join(", ") : "general programming"
-      }.
+      }.Must be generate the questions differently in logic. Make sure problem is tricky and concept based questions and problem
 
         Each question must have:
         - skill
@@ -246,6 +119,7 @@ export default function FaceCapture() {
       const saveRes = await API.post("/job-seeker/tests/genTest", {
         questions,
         skills,
+        questionCount,
       });
       if (saveRes.data?.success) {
         toast.success("Verification Successful");
@@ -280,8 +154,8 @@ export default function FaceCapture() {
   }
 
   return (
-    <div className="flex  items-center justify-center min-h-screen p-8 bg-gray-50">
-      <div className="bg-white rounded-lg shadow-lg p-6 max-w-2xl w-full">
+    <div className="flex  items-center justify-center h-full bg-gray-50">
+      <div className="bg-white rounded-lg shadow-lg h-full p-6 max-w-2xl w-full">
         <h1 className="text-2xl font-bold text-center mb-6 text-gray-800">
           Face Verification
         </h1>

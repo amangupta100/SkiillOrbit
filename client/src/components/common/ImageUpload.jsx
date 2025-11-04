@@ -131,13 +131,13 @@ export const ImageUpload = ({ onChange, onClose, data, imageUpload }) => {
 
   return (
     <div className="absolute overflow-y-hidden inset-0 z-[999] bg-black/70 backdrop-blur-md flex items-center justify-center">
-      <div className="relative w-full max-w-2xl mx-4">
+      <div className="relative w-full max-w-2xl  mx-4 ">
         {imageUpload && (
           <button
             onClick={onClose}
-            className="absolute -top-10 -right-0 p-2 rounded-full text-white cursor-pointer"
+            className="absolute -top-0 z-[9999] -right-0 p-2 rounded-full cursor-pointer"
           >
-            <IconX className={`${imageUpload ? "hidden" : "w-6 h-6"}`} />
+            <IconX className={` w-6 h-6}`} />
           </button>
         )}
 

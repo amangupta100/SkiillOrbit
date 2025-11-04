@@ -10,6 +10,9 @@ export function DashboardSkeleton() {
     "/job-seekerDashboard/test/verifyIdentity",
     "/job-seekerDashboard/test/testEnvironment",
     "/job-seekerDashboard/opportunities",
+    "/job-seekerDashboard/test/:id",
+    "/job-seekerDashboard/test",
+    "/job-seekerDashboard/profile",
   ];
 
   if (pathsNottoShow.includes(pathname)) {

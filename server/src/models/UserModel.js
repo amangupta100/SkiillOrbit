@@ -4,19 +4,23 @@ const crypto = require("crypto");
 const userSchema = new mongoose.Schema(
   {
     name: { type: String, required: true },
-    certification: { type: [Object] },
-    education: { type: [Object] },
-    experience: { type: [Object] },
-    achievements: { type: [Object] },
-    summary: { type: String },
-    projects: { type: [Object], default: [] },
-    email: { type: String, required: true },
+    email: { type: String, required: true, trim: true },
     password: { type: String, required: true },
+
+    // Profile info
+    summary: { type: String },
+    certification: { type: [Object], default: [] },
+    education: { type: [Object], default: [] },
+    experience: { type: [Object], default: [] },
+    achievements: { type: [Object], default: [] },
+    projects: { type: [Object], default: [] },
+
+    // Media
     image: {
       type: {
-        data: String, // Base64 encoded string
-        contentType: String, // MIME type (e.g., 'image/jpeg')
-        lastModified: Date, // When the image was last updated
+        data: String, // Base64 encoded
+        contentType: String,
+        lastModified: Date,
       },
       default: null,
     },
@@ -26,34 +30,41 @@ const userSchema = new mongoose.Schema(
       lastModified: { type: Date, default: Date.now },
       filename: String,
     },
+
+    // Role & job preferences
     role: {
       type: String,
       enum: ["job-seeker", "recruiter", "admin"],
       default: "job-seeker",
     },
-    test: { type: [Object] },
-    testScores: { type: Number, default: null },
-    scoreExpiry: { type: Date, default: null },
-    appliedJobs: [
-      {
-        jobId: { type: mongoose.Schema.Types.ObjectId, ref: "Job" },
-        status: {
-          type: String,
-          enum: ["pending", "interviewed", "rejected", "selected"],
-          default: "pending",
-        },
-      },
-    ],
     desiredDomain: { type: String, default: "" },
     desiredRole: { type: String },
+
+    // Skill Data
     skills: { type: [String], default: [] },
     verifiedSkills: { type: [String], default: [] },
+
+    // Test Data
+    test: { type: [Object], default: [] },
+    testScores: { type: Number, default: null },
+    scoreExpiry: { type: Date, default: null },
+
+    // ✅ Application references
+    applications: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "Application", // References applications for jobs or internships
+      },
+    ],
+
+    // Session management
     sessionToken: { type: String, default: null },
     lastLogin: { type: Date, default: null },
     loginHistory: [{ timestamp: { type: Date, default: Date.now } }],
     lastLogout: { type: Date, default: null },
     lastActive: { type: Date, default: null },
     lastActiveDisplay: { type: String, default: null },
+
     onlineStatus: {
       type: String,
       enum: ["online", "offline", "away"],
@@ -63,16 +74,17 @@ const userSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-// Indexes
+//
+// 🔍 INDEXES
+//
 userSchema.index({ email: 1 }, { unique: true });
 userSchema.index({ skills: 1 });
 userSchema.index({ role: 1, desiredDomain: 1 });
+userSchema.index({ applications: 1 });
 
-// Optional: index for appliedJobs subdocument if frequently queried
-userSchema.index({ "appliedJobs.jobId": 1 });
-userSchema.index({ "appliedJobs.status": 1 });
-
-// Methods
+//
+// 🔑 METHODS
+//
 userSchema.methods.generateSessionToken = function () {
   return crypto.randomBytes(32).toString("hex");
 };

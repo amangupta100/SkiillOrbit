@@ -1,4 +1,4 @@
-import { create } from 'zustand';
+import { create } from "zustand";
 
 const useJobFormStore = create((set) => ({
   // Modal state
@@ -6,23 +6,23 @@ const useJobFormStore = create((set) => ({
   openModal: () => set({ isOpen: true }),
   closeModal: () => set({ isOpen: false }),
 
-  // Form state (aligned with your JobModel)
+  // Form state
   jobForm: {
-    location: 'Remote', // enum: Remote, Hybrid, On-Site
-    domain: '',
-    role: '',
-    requiredSkills: [], // array of strings
-    optionalSkills:[],
-    description: '',
+    location: "Remote", // enum: Remote, Hybrid, On-Site
+    domain: "",
+    role: "",
+    requiredSkills: [],
+    optionalSkills: [],
+    description: "",
     salaryRange: {
-      min: '',
-      max: '',
+      min: "",
+      max: "",
     },
-    benchmarkScore:"",
-    nop:"",
-    experience:"",
-    preferredJoiningDate:"",
-    extBenefits:null
+    benchmarkScore: "",
+    nop: "",
+    experience: "",
+    preferredJoiningDate: "",
+    extBenefits: [], // Changed from null → []
   },
 
   // Update top-level field
@@ -46,7 +46,7 @@ const useJobFormStore = create((set) => ({
       },
     })),
 
-  // Set skills
+  // Update required and optional skills
   setSkills: (skills) =>
     set((state) => ({
       jobForm: {
@@ -55,32 +55,30 @@ const useJobFormStore = create((set) => ({
       },
     })),
 
-    setOptionalSkills:(skills)=>{
-    set((state)=>({
-      jobForm:{
+  setOptionalSkills: (skills) =>
+    set((state) => ({
+      jobForm: {
         ...state.jobForm,
-        optionalSkills:skills
-      }
-    }))
-    },
+        optionalSkills: skills,
+      },
+    })),
 
   // Reset form
   resetForm: () =>
     set(() => ({
       jobForm: {
-        title: '',
-        company: '',
-        location: 'Remote',
-        jobType: 'Full-time',
-        domain: '',
-        role: '',
+        location: "Remote",
+        domain: "",
+        role: "",
         requiredSkills: [],
-        description: '',
-        salaryRange: {
-          min: '',
-          max: '',
-        },
-        createdBy: '',
+        optionalSkills: [],
+        description: "",
+        salaryRange: { min: "", max: "" },
+        benchmarkScore: "",
+        nop: "",
+        experience: "",
+        preferredJoiningDate: "",
+        extBenefits: [],
       },
     })),
 }));

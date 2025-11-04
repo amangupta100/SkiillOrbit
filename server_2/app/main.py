@@ -1,3 +1,4 @@
+# Updated main.py (your existing FastAPI main file)
 from dotenv import load_dotenv
 load_dotenv()
 
@@ -8,6 +9,9 @@ import os
 from app.api.routes.proctoring import socket
 from app.api.routes import parseResume
 from app.api.routes.tts import ttsRoute
+from app.api.routes.ats import ats_scoring
+from app.api.routes import overlayDetection
+
 app = FastAPI()
 
 # Get allowed origins from environment
@@ -33,6 +37,10 @@ app.include_router(face_verification.router)
 app.include_router(socket.router)
 app.include_router(parseResume.router)
 app.include_router(ttsRoute.router)
+app.include_router(ats_scoring.router)
+
+# NEW: Include the overlay detection router
+app.include_router(overlayDetection.router)
 
 @app.get("/")
 async def root():

@@ -45,7 +45,6 @@ const page = () => {
       setLoading(true);
       const response = await API.post("/auth/login", formData);
       const { success: succ, message } = response.data;
-      console.log(response.data);
 
       if (succ) {
         toast.success(message);

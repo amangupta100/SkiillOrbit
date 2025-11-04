@@ -17,6 +17,7 @@ import ProgressSidebar from "@/components/userDashboard/test/ProgressSidebar";
 import { useNotificationStore } from "@/store/test/useNotification";
 import TestNotification from "@/components/userDashboard/test/TestNotification";
 import { useRecordingStore } from "@/store/test/useRecordingStore";
+import { useRouter } from "next/navigation";
 
 export default function TestPage() {
   const [questions, setQuestions] = useState([]);
@@ -27,10 +28,9 @@ export default function TestPage() {
   const { isSidebarVisible } = useProgressSidebarStore();
   const [timeLeft, setTimeLeft] = useState(null);
   const { isNotificationContentVisible } = useNotificationStore();
-  const { startRecording } = useRecordingStore();
-  const recorderRef = useRef(null);
-  const streamRef = useRef(null);
+  const { startRecording, stopRecording } = useRecordingStore();
   const addChunk = useRecordingStore.getState().addChunk;
+  const router = useRouter();
 
   // Check if instructions were already shown
   const shouldShowInstructions = !Cookies.get("isInstructionsShown");
@@ -63,7 +63,7 @@ export default function TestPage() {
           setCode(initialCode);
         }
       } catch (error) {
-        console.error("Failed to parse questions:", error);
+        toast.error("Failed to parse questions:", error);
       }
     }
 
@@ -85,9 +85,10 @@ export default function TestPage() {
 
         if (newTime <= 0) {
           clearInterval(timerId);
+          Cookies.remove("isInstructionsShown");
+          Cookies.remove("tt");
           // Time's up - redirect to submit page
-          window.location.href = "/job-seekerDashboard/test/submit";
-          return 0;
+          router.push("/job-seekerDashboard/test/submit");
         }
         return newTime;
       });
@@ -151,27 +152,73 @@ export default function TestPage() {
     document.body.style.overflow = "hidden";
     document.body.classList.add("dark:bg-black");
 
-    // Add fullscreen change event listener
-    const handleFullscreenChange = () => {
-      if (!document.fullscreenElement && isFullscreen) {
+    let hasMounted = false; // Prevent triggering right on mount
+    let isUnmounting = false; // Prevent triggering during unmount
+
+    const handleFullscreenChange = async () => {
+      if (!document.fullscreenElement && isFullscreen && !isUnmounting) {
         toast.warning(
-          "Exiting fullscreen is not allowed. Your test will be automatically submitted after this action."
+          "Exiting fullscreen is not allowed as mentioned in instructions."
         );
+
+        sessionStorage.setItem(
+          "flags",
+          JSON.stringify([
+            "Performed exiting full screen as it is strictly prohibited.",
+          ])
+        );
+
+        stopRecording();
+        router.push("/job-seekerDashboard/test/submit");
+        Cookies.remove("tt");
         setTimeout(() => {
-          window.location.href = "/job-seekerDashboard/test/submit";
-        }, 2000);
+          Cookies.remove("isInstructionsShown");
+        }, 1500);
       }
       setIsFullscreen(!!document.fullscreenElement);
     };
 
+    const handleVisibilityChange = () => {
+      // ⛔ Ignore first mount and unmount
+      if (!hasMounted || isUnmounting) return;
+
+      if (document.hidden) {
+        toast.warning(
+          "Switching tabs or minimizing the window is not allowed during the test."
+        );
+
+        sessionStorage.setItem(
+          "flags",
+          JSON.stringify([
+            "Attempted to switch browser tab or minimize the window during test.",
+          ])
+        );
+
+        router.push("/job-seekerDashboard/test/submit");
+
+        setTimeout(() => {
+          Cookies.remove("isInstructionsShown");
+        }, 1500);
+      }
+    };
+
+    // Attach listeners
     document.addEventListener("fullscreenchange", handleFullscreenChange);
     document.addEventListener("webkitfullscreenchange", handleFullscreenChange);
     document.addEventListener("msfullscreenchange", handleFullscreenChange);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
 
+    // Allow visibility detection only after a short delay
+    const mountTimer = setTimeout(() => {
+      hasMounted = true;
+    }, 1000);
+
+    // Cleanup
     return () => {
-      document.removeEventListener("keydown", (e) => e.preventDefault());
-      document.body.style.userSelect = "";
-      document.body.style.webkitUserSelect = "";
+      isUnmounting = true; // ✅ prevents visibility event firing on unmount
+      clearTimeout(mountTimer);
+      document.body.style.overflow = "";
+      document.body.classList.remove("dark:bg-black");
       document.removeEventListener("fullscreenchange", handleFullscreenChange);
       document.removeEventListener(
         "webkitfullscreenchange",
@@ -181,8 +228,9 @@ export default function TestPage() {
         "msfullscreenchange",
         handleFullscreenChange
       );
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
-  }, [isFullscreen]); // Removed enterFullscreen from dependencies
+  }, [isFullscreen, router]);
 
   const handleQuestionChange = (newIndex) => {
     if (newIndex >= 0 && newIndex < questions.length) {
@@ -203,6 +251,13 @@ export default function TestPage() {
       setIsCodeChanged(false);
     }
   };
+
+  useEffect(() => {
+    return () => {
+      // Cleanup on unmount (e.g., navigation away)
+      stopRecording();
+    };
+  }, [stopRecording]);
 
   const initializeKioskMode = useCallback(() => {
     const handleKeyDown = (e) => {
@@ -225,7 +280,7 @@ export default function TestPage() {
         video: true,
         audio: true,
       });
-      streamRef.current = stream;
+      // streamRef.current = stream;  // OPTIONAL: Keep if used elsewhere
 
       let mimeType = "video/webm;codecs=vp9";
       if (!MediaRecorder.isTypeSupported(mimeType)) {
@@ -237,11 +292,11 @@ export default function TestPage() {
         mimeType,
         videoBitsPerSecond: 2500000,
       });
-      recorderRef.current = recorder;
+      // recorderRef.current = recorder;  // OPTIONAL: Keep if used elsewhere
 
       recorder.ondataavailable = (e) => {
         if (e.data.size > 0) {
-          addChunk(e.data);
+          addChunk(e.data); // This is from store
         } else {
           console.warn("Empty chunk received");
         }
@@ -252,7 +307,11 @@ export default function TestPage() {
       recorder.onerror = (e) => console.error("Recorder error:", e);
 
       recorder.start(100);
-      startRecording();
+
+      // UPDATED: Set in store instead of local ref
+      useRecordingStore.getState().initializeMedia(recorder, stream);
+
+      startRecording(); // From store
 
       console.log("Recording started with mimeType:", recorder.mimeType);
     } catch (err) {

@@ -1,9 +1,10 @@
+// page.jsx
 "use client";
 
-import React, { use, useEffect, useRef, useState } from "react";
+import React, { use, useEffect, useRef, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { PhoneOff, Info, Copy } from "lucide-react";
+import { PhoneOff, Info, Copy, X, MicOff } from "lucide-react";
 import { LuCopyCheck } from "react-icons/lu";
 import NavigationGuard from "@/lib/common/NavigationGuard";
 import { toast } from "sonner";
@@ -15,13 +16,14 @@ import {
   TooltipTrigger,
   TooltipContent,
   TooltipProvider,
-} from "@/components/ui/tooltip"; // ✅ import your custom tooltip
+} from "@/components/ui/tooltip";
 // 🔹 new imports
 import ParticipantCard from "@/components/recruiterDashboard/Interview/session/ParticipantCard";
 import ControlsBar from "@/components/recruiterDashboard/Interview/session/ControlsBar";
 import useRoomConnection from "@/lib/recruiterDashboard/roomConnection";
 import { IoMdClose } from "react-icons/io";
 import Messages from "@/components/recruiterDashboard/Interview/session/Messages";
+// 🔹 REMOVED: html2canvas import (moved to hook)
 
 export default function Room({ params }) {
   const { roomId } = use(params);
@@ -42,9 +44,15 @@ export default function Room({ params }) {
   const [screenLoading, setScreenLoading] = useState(false);
   const [showMessSidebar, setshowMessSidebar] = useState(false);
   const [notif, setNotf] = useState(false);
+  const [fullScreenId, setFullScreenId] = useState(null);
+  // 🔹 NEW: Monitoring state (host only) - persists via server fetch
+  const [monitoredParticipants, setMonitoredParticipants] = useState(new Set());
+
+  // 🔹 REMOVED: screenshotInterval state (now in hook ref)
 
   // refs
   const audioRef = useRef(null);
+  const displayStreamRef = useRef(null);
 
   // load user info
   useEffect(() => {
@@ -56,12 +64,159 @@ export default function Room({ params }) {
     const data = JSON.parse(sessionStorage.getItem("data") || "null");
     if (!data?.name || !data?.role) {
       toast.error("Unauthorized. Please log in.");
-
       return;
     }
     setUserName(data.name);
     setRole(data.role);
   }, []);
+
+  // 🔹 use custom hook for connection (pass role)
+  const {
+    participants,
+    remoteStreamsMap,
+    userCount,
+    loading,
+    localVideoRef,
+    localStreamRef,
+    socketRef,
+    webrtcRef,
+    monitorLogs,
+    setMonitorLogs,
+    clearMonitorLogs,
+  } = useRoomConnection({ roomId, userName, router, isMuted, cameraOn, role });
+
+  // Play ping sound once at mid volume when entering the room (after loading and user info)
+  useEffect(() => {
+    if (!loading && userName && audioRef.current) {
+      audioRef.current.volume = 0.3; // Mid volume
+      audioRef.current.play().catch((err) => {
+        console.error("Failed to play ping sound:", err);
+      });
+    }
+  }, [loading, userName]);
+
+  // 🔹 NEW: Fetch current monitoring state on connect (host only)
+  useEffect(() => {
+    if (socketRef.current && role === "recruiter") {
+      socketRef.current.emit("get-current-monitoring", { roomId });
+    }
+  }, [socketRef.current, role, roomId]);
+
+  // 🔹 UPDATED: Listen for monitoring updates and events (host-focused)
+  useEffect(() => {
+    if (!socketRef.current) return;
+
+    const handleMonitoringUpdated = ({ targetId, action }) => {
+      setMonitoredParticipants((prev) => {
+        const newSet = new Set(prev);
+        if (action === "start") {
+          newSet.add(targetId);
+        } else {
+          newSet.delete(targetId);
+        }
+        return newSet;
+      });
+    };
+
+    const handleCurrentMonitoring = ({ monitoredIds }) => {
+      setMonitoredParticipants(new Set(monitoredIds));
+    };
+
+    const handleMonitorEvent = (payload) => {
+      // Only host processes these
+      if (role !== "recruiter") return;
+
+      // Handle event type safely (string for visibility, object for others)
+      const eventType =
+        typeof payload.event === "string"
+          ? payload.event
+          : payload.event?.type || "unknown";
+
+      // For screenshots: Already handled via overlay-detection-result
+      if (eventType !== "screenshot") {
+        setMonitorLogs((prev) => [
+          ...prev,
+          {
+            event: `${payload.socketId} - ${eventType}`,
+            time: payload.time,
+          },
+        ]);
+      }
+    };
+
+    // 🔹 NEW: Handle overlay detection results (host only)
+    const handleOverlayDetectionResult = ({
+      socketId,
+      detected,
+      processedScreenshotB64,
+      coords,
+    }) => {
+      if (role !== "recruiter") return;
+
+      const eventMsg = detected ? "OVERLAY DETECTED" : "No overlay";
+      setMonitorLogs((prev) => [
+        ...prev,
+        { event: `${socketId} - ${eventMsg}`, time: new Date().toISOString() },
+      ]);
+
+      if (detected) {
+        toast.error(`Overlay detected for ${socketId}!`, {
+          description: "AI assistance suspected. Review screenshot.",
+          action: {
+            label: "View",
+            onClick: () => {
+              // Open processed screenshot in new tab or modal
+              const imgUrl = `data:image/png;base64,${processedScreenshotB64}`;
+              window.open(imgUrl, "_blank");
+            },
+          },
+        });
+      } else {
+      }
+    };
+
+    // Handle overlay error
+    const handleOverlayDetectionError = ({ socketId, error }) => {
+      if (role !== "recruiter") return;
+      setMonitorLogs((prev) => [
+        ...prev,
+        {
+          event: `${socketId} - Overlay detection error: ${error}`,
+          time: new Date().toISOString(),
+        },
+      ]);
+      toast.error(`Overlay detection failed for ${socketId}: ${error}`);
+    };
+
+    socketRef.current.on("monitoring-updated", handleMonitoringUpdated);
+    socketRef.current.on("current-monitoring", handleCurrentMonitoring);
+    socketRef.current.on("monitor-event", handleMonitorEvent);
+    socketRef.current.on(
+      "overlay-detection-result",
+      handleOverlayDetectionResult
+    );
+    socketRef.current.on(
+      "overlay-detection-error",
+      handleOverlayDetectionError
+    );
+
+    return () => {
+      socketRef.current.off("monitoring-updated", handleMonitoringUpdated);
+      socketRef.current.off("current-monitoring", handleCurrentMonitoring);
+      socketRef.current.off("monitor-event", handleMonitorEvent);
+      socketRef.current.off(
+        "overlay-detection-result",
+        handleOverlayDetectionResult
+      );
+      socketRef.current.off(
+        "overlay-detection-error",
+        handleOverlayDetectionError
+      );
+    };
+  }, [socketRef.current, role, roomId, setMonitorLogs]);
+
+  // 🔹 REMOVED: captureScreenshot, start/stopScreenshotInterval, and enable-monitor useEffect
+  // (Now handled in hook for guaranteed post-connect attachment)
 
   const handleCopy = async () => {
     try {
@@ -74,18 +229,23 @@ export default function Room({ params }) {
     }
   };
 
-  // 🔹 use custom hook for connection
-  const {
-    participants,
-    remoteStreamsMap,
-    userCount,
-    loading,
-    localVideoRef,
-    localStreamRef,
-    socketRef,
-    webrtcRef,
-    monitorLogs,
-  } = useRoomConnection({ roomId, userName, router, isMuted, cameraOn });
+  const onFullScreen = useCallback((socketId) => {
+    setFullScreenId(socketId);
+  }, []);
+
+  // 🔹 UPDATED: onMonitor - Emits ONCE per click (server toggles based on state)
+  const onMonitor = useCallback(
+    (socketId) => {
+      if (role !== "recruiter") return; // Host only
+      if (!socketRef.current) return;
+      // Emit always - server checks current state and toggles accordingly
+      socketRef.current.emit("start-monitor", {
+        targetId: socketId,
+        roomId,
+      });
+    },
+    [role, roomId, socketRef]
+  );
 
   const exitKioskMode = () => {
     if (document.fullscreenElement) {
@@ -106,30 +266,42 @@ export default function Room({ params }) {
           audio: true,
         });
 
+        displayStreamRef.current = displayStream;
+
         const screenTrack = displayStream.getVideoTracks()[0];
         webrtcRef.current.replaceTrack(screenTrack);
 
         setIsScreenSharing(true);
         setScreenLoading(false);
 
-        screenTrack.onended = () => {
-          webrtcRef.current.replaceTrack(
-            localStreamRef.current.getVideoTracks()[0]
-          );
-          setIsScreenSharing(false);
-        };
+        displayStream.getTracks().forEach((track) => {
+          track.onended = () => {
+            if (displayStreamRef.current) {
+              displayStreamRef.current.getTracks().forEach((t) => t.stop());
+              displayStreamRef.current = null;
+            }
+            webrtcRef.current.replaceTrack(
+              localStreamRef.current.getVideoTracks()[0]
+            );
+            setIsScreenSharing(false);
+          };
+        });
       } catch (err) {
         console.error("Screen share error:", err);
         setScreenLoading(false);
       }
     } else {
+      if (displayStreamRef.current) {
+        displayStreamRef.current.getTracks().forEach((track) => track.stop());
+        displayStreamRef.current = null;
+      }
       const camTrack = localStreamRef.current.getVideoTracks()[0];
       webrtcRef.current.replaceTrack(camTrack);
       setIsScreenSharing(false);
     }
   };
 
-  // 🔹 Render Video Cards Function
+  // 🔹 Render Video Cards Function - UPDATED: Pass isMonitoring
   const renderVideoCards = () => {
     const myId = socketRef.current?.id;
 
@@ -161,16 +333,13 @@ export default function Room({ params }) {
             localVideoRef={localVideoRef}
             isScreenSharing={true}
             screenLoading={screenLoading}
-            onFullScreen={(socketId) => {
-              console.log("Full screen clicked for", socketId);
-            }}
-            socketRef={socketRef} // 👈 pass socketRef here
+            onFullScreen={onFullScreen}
+            socketRef={socketRef}
             socketId={socketRef.current?.id}
-            onMonitor={(socketId) => {
-              console.log("Monitor clicked for", socketId);
-            }}
+            onMonitor={onMonitor}
             isLocal={isLocal}
             roomId={roomId}
+            isMonitoring={monitoredParticipants.has(p.socketId)}
           />
         );
       }
@@ -184,16 +353,13 @@ export default function Room({ params }) {
           localStreamRef={localStreamRef}
           remoteStream={remoteStreamsMap[p.socketId]}
           localVideoRef={localVideoRef}
-          isHost={role === "recruiter"} // 👈 pass role as host flag
-          onFullScreen={(socketId) => {
-            console.log("Full screen clicked for", socketId);
-          }}
-          socketRef={socketRef} // 👈 pass socketRef here
-          onMonitor={(socketId) => {
-            console.log("Monitor clicked for", socketId);
-          }}
+          isHost={role === "recruiter"}
+          onFullScreen={onFullScreen}
+          socketRef={socketRef}
+          onMonitor={onMonitor}
           socketId={socketRef.current?.id}
           roomId={roomId}
+          isMonitoring={monitoredParticipants.has(p.socketId)}
         />
       );
     });
@@ -265,9 +431,25 @@ export default function Room({ params }) {
     );
   }
 
+  const selectedParticipant = participants?.find(
+    (p) => p.socketId === fullScreenId
+  );
+  const isLocalFullScreen = socketRef.current?.id === fullScreenId;
+  const fullScreenParticipant = selectedParticipant
+    ? {
+        ...selectedParticipant,
+        cameraOn: isLocalFullScreen
+          ? cameraOn
+          : selectedParticipant.cameraOn ?? true,
+        isMuted: isLocalFullScreen
+          ? isMuted
+          : selectedParticipant.isMuted ?? false,
+      }
+    : null;
+
   return (
     <div className="flex flex-col w-screen h-screen overflow-hidden bg-gray-100 text-gray-900">
-      <audio ref={audioRef} src="/interview_enter.mp3" preload="auto" />
+      <audio ref={audioRef} src="/ping_sound_effect.mp3" preload="auto" />
 
       {/* header */}
       <TooltipProvider>
@@ -309,8 +491,6 @@ export default function Room({ params }) {
                       onClick={() => setNotf(!notif)}
                       className="w-6 h-6 text-blue-500"
                     />
-                    {/* Optional red dot indicator */}
-                    {/* <div className="w-3 h-3 bg-red-500 rounded-full absolute -top-1 -right-1 animate-pulse" /> */}
                   </div>
                 </TooltipTrigger>
                 <TooltipContent side="bottom">Notifications</TooltipContent>
@@ -353,6 +533,7 @@ export default function Room({ params }) {
               notiBox={notif}
               logs={monitorLogs}
               setnotBox={setNotf}
+              clearLogs={clearMonitorLogs}
             />
           )}
         </div>
@@ -413,9 +594,10 @@ export default function Room({ params }) {
                       </div>
                     </div>
                     <hr
-                      className={`${
-                        participants.length === ind ? "hidden" : null
-                      }  border-[1.1px] my-2 border-zinc-400`}
+                      className={`
+                        ${ind === participants.length - 1 ? "hidden" : ""}
+                        border-[1.1px] my-2 border-zinc-400
+                      `}
                     />
                   </div>
                 );
@@ -466,11 +648,113 @@ export default function Room({ params }) {
         url="/interviews"
         message="Session will be ended on performing the actions"
       />
+
+      {/* Full Screen Participant View */}
+      {fullScreenId && fullScreenParticipant && (
+        <FullScreenParticipant
+          participant={fullScreenParticipant}
+          isLocal={isLocalFullScreen}
+          localStreamRef={localStreamRef}
+          remoteStreamsMap={remoteStreamsMap}
+          isScreenSharing={isScreenSharing}
+          displayStreamRef={displayStreamRef}
+          onExit={() => setFullScreenId(null)}
+          myId={socketRef.current?.id}
+        />
+      )}
     </div>
   );
 }
 
-const Notifications = ({ logs, notiBox, setnotBox }) => {
+// FullScreenParticipant component (unchanged)
+const FullScreenParticipant = ({
+  participant,
+  isLocal,
+  localStreamRef,
+  remoteStreamsMap,
+  isScreenSharing,
+  displayStreamRef,
+  onExit,
+  myId,
+}) => {
+  const videoRef = useRef(null);
+  const audioRef = useRef(null);
+  const firstLetter = participant?.userName?.charAt(0)?.toUpperCase() || "?";
+
+  useEffect(() => {
+    if (videoRef.current) {
+      let streamToSet = null;
+      if (isLocal && isScreenSharing) {
+        streamToSet = displayStreamRef.current;
+      } else if (isLocal) {
+        streamToSet = localStreamRef.current;
+      } else {
+        streamToSet = remoteStreamsMap[participant.socketId];
+      }
+      if (streamToSet) {
+        videoRef.current.srcObject = streamToSet;
+      }
+    }
+    if (audioRef.current && !isLocal) {
+      audioRef.current.srcObject = remoteStreamsMap[participant.socketId];
+    }
+  }, [
+    isLocal,
+    isScreenSharing,
+    localStreamRef,
+    remoteStreamsMap,
+    participant.socketId,
+    displayStreamRef,
+  ]);
+
+  const showVideo =
+    participant.cameraOn !== false || (isLocal && isScreenSharing);
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black flex flex-col">
+      {/* Exit Button */}
+      <button
+        onClick={onExit}
+        className="absolute top-4 right-4 z-10 p-2 text-white hover:bg-white/20 rounded-full transition"
+      >
+        <X className="w-6 h-6" />
+      </button>
+
+      {/* Video/Content Area */}
+      <div className="flex-1 relative flex items-center justify-center overflow-hidden">
+        {showVideo ? (
+          <>
+            <video
+              ref={videoRef}
+              autoPlay
+              playsInline
+              muted={isLocal}
+              className="w-full h-full object-cover"
+            />
+            {!isLocal && <audio ref={audioRef} autoPlay className="hidden" />}
+          </>
+        ) : (
+          <div className="flex items-center justify-center w-full h-full bg-gray-200 text-9xl font-semibold text-gray-600">
+            <div className="rounded-full p-4 w-48 h-48 flex justify-center items-center border border-zinc-400">
+              <h1>{firstLetter}</h1>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Name + Mic Bar */}
+      <div className="absolute bottom-4 left-4 bg-black/60 text-white px-4 py-2 rounded flex items-center gap-2">
+        <span className="text-lg">
+          {participant.userName} {participant.isHost ? "(Host)" : ""}
+        </span>
+        {participant.isMuted && <MicOff className="w-5 h-5 text-red-400" />}
+      </div>
+    </div>
+  );
+};
+
+// Notifications component (updated with clearLogs prop)
+const Notifications = ({ logs, notiBox, setnotBox, clearLogs }) => {
   function formatTime(isoString) {
     if (!isoString) return "";
     const date = new Date(isoString);
@@ -486,11 +770,19 @@ const Notifications = ({ logs, notiBox, setnotBox }) => {
     return `${String(hours).padStart(2, "0")}:${minutes}:${seconds} ${ampm}`;
   }
 
+  const handleClear = () => {
+    if (clearLogs) {
+      clearLogs();
+    }
+    setnotBox(false); // Close popup
+  };
+
   return (
     <div
-      className={`${
-        logs.length === 0 ? "flex justify-center items-center" : ""
-      } absolute top-16 right-5 w-80 h-80 bg-white border border-gray-300 rounded-lg shadow-lg z-50 p-1`}
+      className={`
+        ${logs.length === 0 ? "flex justify-center items-center" : ""}
+        absolute top-16 right-5 w-80 h-80 gap-2 p-3 overflow-y-auto flex flex-col bg-white border border-gray-300 rounded-lg shadow-lg z-50
+      `}
     >
       {logs.length === 0 ? (
         <div className="flex flex-col items-center justify-center">
@@ -502,13 +794,24 @@ const Notifications = ({ logs, notiBox, setnotBox }) => {
         </div>
       ) : (
         <>
-          {logs.map((elem) => {
+          <div className="flex justify-between items-center">
+            <h1 className="font-semibold text-lg"> Monitoring Notification </h1>
+            <Button
+              onClick={handleClear}
+              className="text-black bg-gray-200 hover:bg-gray-300"
+            >
+              Clear
+            </Button>
+          </div>
+          {logs.map((elem, index) => {
             return (
               <div
-                key={elem}
+                key={index}
                 className="p-3 border-[1.6px] rounded-lg border-gray-200"
               >
-                <p className="text-sm text-gray-700">{elem?.event}</p>
+                <p className="text-[12px] text-gray-700">
+                  {elem?.event.toUpperCase()}
+                </p>
                 <p> {formatTime(elem?.time)} </p>
               </div>
             );

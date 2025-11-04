@@ -44,6 +44,7 @@ app.use(
   require("./src/routes/recruiter/sendMailRoute")
 );
 app.use("/api", require("./src/routes/common/SendotpRoute"));
+app.use("/api/common/conversation/", require("./src/routes/common/ChatRoute"));
 
 // Recruiter
 app.use("/api/recruiter/auth", require("./src/routes/recruiter/authRoute"));
@@ -61,6 +62,8 @@ app.use(
   "/api/job-seeker/skills",
   require("./src/routes/user/JobSkillDataRoute")
 );
+
+app.use("/api/recruiter/ats", require("./src/routes/recruiter/atsroute"));
 
 app.use(
   "/api/common/getPersonDet/",
@@ -82,6 +85,7 @@ app.use("/api/common/person", require("./src/routes/common/getPersonDet"));
 
 // ----------------- SOCKET SETUP -----------------
 const { Server } = require("socket.io");
+const { chat_Socket } = require("./src/config/ChatSocket");
 const io = new Server(server, {
   cors: {
     origin: process.env.CLIENT_URL?.replace(/\/$/, ""),
@@ -94,6 +98,9 @@ setupSocket(io);
 
 // Setup interview rooms namespace
 interview_Socket(io);
+
+//chat socket
+chat_Socket(io);
 
 // ----------------- START SERVER -----------------
 const PORT = process.env.PORT || 5000;

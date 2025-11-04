@@ -47,7 +47,6 @@ const page = () => {
       setLoading(true);
       const resp = await API.post("/recruiter/auth/login", formData);
       const { success: succ, message } = resp.data;
-      console.log(resp.data.data);
       if (succ) {
         toast.success(message);
         window.location.href = "/recruiterDashboard";

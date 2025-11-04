@@ -1,6 +1,5 @@
 "use client";
 import { Button } from "@/components/ui/button";
-import { GoogleGenerativeAI } from "@google/generative-ai";
 
 export function InstructionsPage({ onStartTest }) {
   const startTest = async () => {

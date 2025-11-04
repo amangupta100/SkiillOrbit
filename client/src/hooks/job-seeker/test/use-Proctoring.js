@@ -101,7 +101,9 @@ export default function useProctoring(shouldShowInstructions) {
         video.srcObject = stream;
         video.onloadedmetadata;
 
-        ws = new WebSocket("ws://localhost:8000/api/v1/ws/proctor");
+        ws = new WebSocket(
+          `${process.env.NEXT_PUBLIC_WS_URL2}/api/v1/ws/proctor`
+        );
         let canSendFrames = false;
 
         ws.onopen = async () => {

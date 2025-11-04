@@ -7,99 +7,109 @@ const jobSchema = new mongoose.Schema(
       ref: "Company",
       required: true,
     },
-    location: {
-      type: String,
-      default: "Remote",
-      enum: ["Remote", "Hybrid", "On-Site"],
-    },
-    domain: {
-      type: String,
-      required: true,
-    },
-    role: {
-      type: String,
-      required: true,
-    },
-    requiredSkills: {
-      type: [String],
-      required: true,
-    },
-    optionalSkills: {
-      type: [String],
-    },
-    description: {
-      type: String,
-    },
-    salaryRange: {
-      min: { type: Number },
-      max: { type: Number },
-    },
     createdBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Recruiter",
       required: true,
     },
-    applicants: [
-      {
-        userId: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
-        status: {
-          type: String,
-          enum: ["pending", "interviewed", "rejected", "selected"],
-          default: "pending",
-        },
-        appliedAt: {
-          type: Date,
-          default: Date.now,
-        },
-      },
-    ],
-    status: {
+    domain: {
       type: String,
-      enum: ["Active", "Closed"],
-      default: "Active",
+      required: true,
+      trim: true,
     },
-    benchmarkScore: {
+    role: {
       type: String,
-      default: "ALL",
-      enum: ["25%", "50%", "75%", "100%"],
+      required: true,
+      trim: true,
     },
-    nop: {
+    description: {
       type: String,
       required: true,
     },
+    requiredSkills: {
+      type: [String],
+      required: [true, "At least one required skill is needed"],
+    },
+    optionalSkills: {
+      type: [String],
+      default: [],
+    },
     experience: {
+      type: String,
+
+      required: true,
+    },
+    nop: {
+      type: Number,
+      required: [true, "Number of positions is required"],
+      min: [1, "At least one position must be available"],
+    },
+    salaryRange: {
+      min: {
+        type: Number,
+        required: [true, "Minimum salary is required"],
+        min: [0, "Salary cannot be negative"],
+      },
+      max: {
+        type: Number,
+        required: [true, "Maximum salary is required"],
+        validate: {
+          validator: function (v) {
+            return v >= this.salaryRange.min;
+          },
+          message: "Maximum salary must be greater than minimum salary",
+        },
+      },
+    },
+    location: {
+      type: String,
+      enum: ["Remote", "Hybrid", "On-Site"],
+      default: "Remote",
+    },
+    benchmarkScore: {
+      type: String,
+      enum: ["ALL", "25%", "50%", "75%", "100%"],
+      default: "ALL",
+    },
+    preferredJoiningDate: {
       type: String,
       required: true,
     },
     extBenefits: {
       type: [String],
+      default: [],
     },
-    preferredJoiningDate: {
+    status: {
       type: String,
+      enum: ["Active", "Closed"],
+      default: "Active",
     },
+    // Relationship reference to Application model
+    applications: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "Application",
+      },
+    ],
   },
-  {
-    timestamps: true,
-  }
+  { timestamps: true }
 );
 
-// 🔍 Text index for searching jobs by role & skills
+// 🔍 Indexes for faster searching and filtering
 jobSchema.index({
   role: "text",
+  domain: "text",
   requiredSkills: "text",
   optionalSkills: "text",
+  description: "text",
 });
 
-// 📍 Frequently queried fields
 jobSchema.index({ location: 1 });
-jobSchema.index({ domain: 1 });
 jobSchema.index({ experience: 1 });
 jobSchema.index({ status: 1 });
 jobSchema.index({ company: 1 });
 jobSchema.index({ createdBy: 1 });
-jobSchema.index({ updatedAt: -1 }); // for sorting job feeds
-
-// ⚡ Compound index for job feed: active jobs by location sorted by recent updates
+jobSchema.index({ updatedAt: -1 });
 jobSchema.index({ status: 1, location: 1, updatedAt: -1 });
 
 module.exports = mongoose.model("Job", jobSchema);

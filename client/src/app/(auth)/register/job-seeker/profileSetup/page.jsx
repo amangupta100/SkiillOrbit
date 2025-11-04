@@ -199,8 +199,6 @@ const page = () => {
     ResumeDataToken ? getResumeData() : null;
   }, []);
 
-  console.log(inpResumeData);
-
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {

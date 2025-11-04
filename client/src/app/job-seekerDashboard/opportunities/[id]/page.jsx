@@ -1,14 +1,14 @@
 "use client";
 import API from "@/utils/interceptor";
 import Image from "next/image";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import React, { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import money from "@/assests/badge-indian-rupee.svg";
 import duration from "@/assests/clock.svg";
 import Clock from "@/assests/clock.svg";
-import { Filter, Share2 } from "lucide-react";
+import { Filter, Info, Share2 } from "lucide-react";
 import { OpportunityFooter } from "@/components/userDashboard/OpportunitesFooter";
 import JobDetailsSkeleton from "@/components/common/Skeleton/JobDetails";
 import {
@@ -17,11 +17,16 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import useAuthStore from "@/store/authStore";
 
 const page = () => {
   const { id } = useParams();
   const [opportunity, setOpportunity] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [open, setOpen] = useState(false);
+  const { user } = useAuthStore();
+
+  const handleTooltipToggle = () => setOpen((prev) => !prev);
   const monthsMapper = {
     "01": "January",
     "02": "February",
@@ -36,6 +41,7 @@ const page = () => {
     11: "November",
     12: "December",
   };
+  const router = useRouter();
 
   useEffect(() => {
     const fetchDetails = async () => {
@@ -136,7 +142,26 @@ const page = () => {
     );
   };
 
+  const handleApply = () => {
+    if (!opportunity) return;
+    const allSkills = [
+      ...(opportunity.requiredSkills || []),
+      ...(opportunity.optionalSkills || []),
+    ];
+
+    const skillParams = encodeURIComponent(JSON.stringify(allSkills));
+    router.push(
+      `/job-seekerDashboard/opportunities/${id}/match-skill?skills=${skillParams}`
+    );
+  };
+
   console.log("opportunity", opportunity);
+
+  const alreadyApplied = opportunity?.applications.some(
+    (application) => application.user === user.id
+  );
+
+  console.log(user.id);
 
   return (
     <div className="px-4 py-8">
@@ -312,24 +337,67 @@ const page = () => {
 
             {/* Actions */}
             <div className="mt-3">
-              <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+              <div className="flex flex-col lg:flex-row md:items-center md:justify-between gap-3">
                 {/* Apply by / Posted part */}
-                <div className="flex justify-between w-full md:w-auto text-blue-600 font-medium text-sm md:text-base">
-                  <span className="">
-                    {formatPreferredJoiningDate(
-                      opportunity.preferredJoiningDate
-                    )}
-                  </span>
-                  <span className="font-bold mx-1 md:inline-block hidden">
-                    •
-                  </span>
-                  <span className="hidden md:inline-block">
-                    Posted {formattedDate(opportunity.createdAt)}
-                  </span>
-                  <span className="md:hidden visible bg-blue-50 px-3 py-[2px] rounded-full flex items-center gap-2">
-                    <Image src={Clock} width={15} height={15} alt="" /> Posted{" "}
-                    {formattedDate(opportunity.createdAt)}
-                  </span>
+                <div className="flex justify-between w-full md:w-auto text-blue-600 font-medium text-sm md:text-base relative">
+                  {opportunity.preferredJoiningDate
+                    .toLowerCase()
+                    .includes("immediate") ? (
+                    <div className="flex items-center gap-2 w-full relative">
+                      {/* Info icon top-right */}
+                      <TooltipProvider>
+                        <Tooltip open={open} onOpenChange={setOpen}>
+                          <TooltipTrigger asChild>
+                            <button
+                              onClick={handleTooltipToggle}
+                              className=" text-blue-600 hover:text-blue-800 cursor-pointer"
+                            >
+                              {alreadyApplied && <Info className="w-4 h-4" />}
+                            </button>
+                          </TooltipTrigger>
+                          <TooltipContent
+                            side="top"
+                            align="start"
+                            className="max-w-xs text-sm text-gray-700 bg-white border shadow-md"
+                          >
+                            This opportunity prefers candidates who can join
+                            immediately or within a short notice period (0–30
+                            days).
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                      <span>Immediate Joiner Preferred</span>
+                      <span className="font-bold mx-1 md:inline-block hidden">
+                        •
+                      </span>
+                      <span className="hidden md:inline-block">
+                        Posted {formattedDate(opportunity.createdAt)}
+                      </span>
+                      <span className="md:hidden visible bg-blue-50 px-3 py-[2px] rounded-full flex items-center gap-2">
+                        <Image src={Clock} width={15} height={15} alt="" />{" "}
+                        Posted {formattedDate(opportunity.createdAt)}
+                      </span>
+                    </div>
+                  ) : (
+                    <>
+                      <span>
+                        {" "}
+                        {formatPreferredJoiningDate(
+                          opportunity.preferredJoiningDate
+                        )}
+                      </span>
+                      <span className="font-bold mx-1 md:inline-block hidden">
+                        •
+                      </span>
+                      <span className="hidden md:inline-block">
+                        Posted {formattedDate(opportunity.createdAt)}
+                      </span>
+                      <span className="md:hidden visible bg-blue-50 px-3 py-[2px] rounded-full flex items-center gap-2">
+                        <Image src={Clock} width={15} height={15} alt="" />{" "}
+                        Posted {formattedDate(opportunity.createdAt)}
+                      </span>
+                    </>
+                  )}
                 </div>
 
                 {/* Buttons */}
@@ -354,14 +422,52 @@ const page = () => {
                   </div>
 
                   <div className="flex min-w-auto gap-4 items-center">
-                    <Button
-                      onClick={() => {
-                        window.location.href = `/job-seekerDashboard/opportunities/${id}/match-skill`;
-                      }}
-                      className="cursor-pointer hover:bg-black/70 transition-all duration-300"
-                    >
-                      Apply Now
-                    </Button>
+                    <TooltipProvider delayDuration={150}>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <div className="inline-flex items-center">
+                            <Button
+                              disabled={alreadyApplied}
+                              className={`flex items-center gap-2 ${
+                                alreadyApplied
+                                  ? "cursor-not-allowed opacity-50"
+                                  : "hover:bg-blue-600"
+                              }`}
+                            >
+                              {alreadyApplied && (
+                                <Info
+                                  className={`w-4 h-4 ${
+                                    alreadyApplied
+                                      ? "text-gray-200 hover:text-white"
+                                      : "text-white/70"
+                                  }`}
+                                />
+                              )}
+                              <span>
+                                {alreadyApplied ? " Applied" : "Apply Now"}
+                              </span>
+                            </Button>
+                          </div>
+                        </TooltipTrigger>
+
+                        <TooltipContent
+                          side="top"
+                          align="center"
+                          className="max-w-[250px] text-center cursor-pointer select-none"
+                        >
+                          {alreadyApplied ? (
+                            <>
+                              You’ve already applied for this opportunity.
+                              <br />
+                              Check the current status under{" "}
+                              <strong>Applied Opportunities</strong>.
+                            </>
+                          ) : (
+                            "Click to apply for this opportunity."
+                          )}
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
                   </div>
                 </div>
               </div>
@@ -455,7 +561,15 @@ const page = () => {
         <div>No data found</div>
       )}
 
-      <OpportunityFooter onApply={() => toast.success("Applied")} />
+      <OpportunityFooter
+        nextBtn="Apply Now"
+        onApply={handleApply} // ✅ pass your handler
+        goBack={() => router.back()}
+        loading={false}
+        disabled={opportunity?.applications.some(
+          (application) => application.user === user.id
+        )}
+      />
     </div>
   );
 };

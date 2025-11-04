@@ -1,6 +1,5 @@
 "use client";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import {
   Command,
   CommandEmpty,
@@ -9,7 +8,6 @@ import {
   CommandItem,
 } from "@/components/ui/command";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import {
   Popover,
   PopoverContent,
@@ -95,13 +93,9 @@ const page = () => {
       return toast.warning(
         "Enter Proper Number of Questions (Must be greater than equal to 10"
       );
-    if (questionCount < 20 && selectedSkills.length == 2)
+    if (selectedSkills.length > 1)
       return toast.warning(
-        "Enter Proper Number of Questions (Must be greater than equal to 20)"
-      );
-    if (selectedSkills.length > 2)
-      return toast.warning(
-        "Can't start test with more than 2 skills at a time, Attempt with 1 or 2 skills"
+        "Can't start test with more than 1 skills at a time, Start with only 1 skills"
       );
 
     try {
@@ -135,7 +129,7 @@ const page = () => {
       <div className="max-w-full">
         {/* Top Section */}
         <div className="bg-white p-5 rounded-lg shadow space-y-4">
-          <h2 className="text-xl font-semibold">Start a Test</h2>
+          <h2 className="text-xl font-semibold">Start Test</h2>
 
           <div className="w-full">
             <Popover open={open} onOpenChange={setOpen}>
@@ -230,12 +224,12 @@ const page = () => {
             disabled={!canProceed || resLoading}
             className={
               !canProceed || resLoading
-                ? "bg-gray-500  hover:bg-gray-300/50 cursor-not-allowed"
+                ? "bg-gray-500  hover:bg-gray-300/50 flex justify-center items-center cursor-not-allowed"
                 : "bg-primary hover:bg-primary/90"
             }
             aria-disabled={!canProceed || resLoading}
           >
-            {resLoading ? <ButtonLoader /> : "Start Test"}
+            {resLoading && <ButtonLoader />}Start Test
           </Button>
         </div>
 
@@ -244,35 +238,97 @@ const page = () => {
           <h3 className="text-lg font-medium mt-12 mb-5">
             Previous Test Scores
           </h3>
+
           <div>
-            {testScores && testScores.length === 0 ? (
+            {!testScores || testScores.length === 0 ? (
               <div className="flex flex-col items-center justify-center pt-8">
                 <Image src={search} alt="Search" width={300} height={300} />
                 <p className="text-gray-500 mt-8">No tests taken yet.</p>
               </div>
             ) : (
               testScores.map((score, idx) => (
-                <Card key={idx}>
-                  <CardContent className="p-4">
+                <div
+                  key={idx}
+                  onClick={() =>
+                    (window.location.href = `/job-seekerDashboard/test/${score._id}`)
+                  }
+                  className={`${
+                    idx - 1 === testScores.length ? "mb-5" : "mb-12"
+                  } relative cursor-pointer border border-gray-200 bg-white px-6 py-6 rounded-xl shadow-sm hover:shadow-md transition-shadow`}
+                >
+                  {/* === Pass/Fail Badge === */}
+                  <div className="absolute -top-[20px] right-[28px] gap-3 flex items-center">
+                    {score.testCompleted && (
+                      <span
+                        className={`relative  px-3 py-1 text-xs font-semibold rounded-full border ${
+                          score.scorePercent > 33
+                            ? "bg-green-100 text-green-600 border-green-600"
+                            : "bg-red-100 text-red-600 border-red-600"
+                        }`}
+                      >
+                        {score.scorePercent > 33 ? "Passed" : "Failed"}
+                      </span>
+                    )}
+
+                    {!score.testCompleted &&
+                      score.SuspiciousFlags.length > 0 && (
+                        <span
+                          className={`relative  px-3 py-1 text-xs font-semibold rounded-full border 
+                          bg-red-100 text-red-600 border-red-600
+                      }`}
+                        >
+                          Flagged
+                        </span>
+                      )}
+
+                    <Button
+                      onClick={() =>
+                        (window.location.href = `/job-seekerDashboard/test/${score._id}`)
+                      }
+                      className="text-black bg-white rounded-xl border-[1.6px] border-zinc-200 hover:bg-gray-200/30"
+                    >
+                      Get Details
+                    </Button>
+                  </div>
+
+                  {/* === Skill(s) === */}
+                  <div className="flex flex-wrap items-center gap-2 mb-3">
+                    {score.skills && score.skills.length > 0 ? (
+                      score.skills.map((skill, sIdx) => (
+                        <span
+                          key={sIdx}
+                          className="bg-blue-50 text-blue-600 border border-blue-200 px-3 py-1 rounded-full text-sm font-medium"
+                        >
+                          {skill}
+                        </span>
+                      ))
+                    ) : (
+                      <span className="text-gray-400 text-sm">
+                        No skills listed
+                      </span>
+                    )}
+                  </div>
+
+                  {/* === Duration & Attempt Info === */}
+                  <div className="text-sm text-gray-600 space-y-1">
                     <p>
-                      <strong>Skills:</strong> {score.skills}
+                      <span className="font-medium text-gray-700">
+                        Duration:
+                      </span>{" "}
+                      {score.duration || "N/A"}
                     </p>
                     <p>
-                      <strong>Average Marks (out of 10):</strong> {score.score}%
+                      <span className="font-medium text-gray-700">
+                        {score?.submittedAt
+                          ? "Attempted At:"
+                          : score?.startedAt && "Started At:"}
+                      </span>{" "}
+                      {score.submittedAt
+                        ? new Date(score.submittedAt).toLocaleString()
+                        : new Date(score.startedAt).toLocaleString()}
                     </p>
-                    <p>
-                      <strong>Duration:</strong> {score.duration}
-                    </p>
-                    <p>
-                      <strong>Date:</strong>{" "}
-                      {new Date(score.date).toLocaleDateString()}
-                    </p>
-                    <p>
-                      <strong>Status:</strong>{" "}
-                      {score.score >= 60 ? "✅ Passed" : "❌ Failed"}
-                    </p>
-                  </CardContent>
-                </Card>
+                  </div>
+                </div>
               ))
             )}
           </div>

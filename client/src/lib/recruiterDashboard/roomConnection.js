@@ -1,3 +1,4 @@
+// roomConnection.js
 "use client";
 import { useEffect, useRef, useState } from "react";
 import io from "socket.io-client";
@@ -72,20 +73,19 @@ export default function useRoomConnection({
           });
         };
 
-        // only emit when tab is hidden
+        // emit on both hidden and visible for better tracking
         const handleVisibility = () => {
-          if (document.hidden) {
-            sendEvent("tab-hidden");
-          }
+          const eventType = document.hidden ? "tab-hidden" : "tab-visible";
+          sendEvent(eventType);
         };
 
         // attach listener
         window.addEventListener("visibilitychange", handleVisibility);
 
-        // initial state check (only if hidden at load)
+        // initial state check
         handleVisibility();
 
-        // ack back
+        // ack back (optional, server doesn't use it currently)
         socket.emit("monitor-enabled", { roomId: rid, socketId: socket.id });
 
         // disable hook
@@ -93,29 +93,6 @@ export default function useRoomConnection({
           window.removeEventListener("visibilitychange", handleVisibility);
           console.log("❌ Monitoring stopped for me (participant)");
         });
-      });
-
-      // === HOST: listen for monitor-event ===
-      socket.on("monitor-event", (payload) => {
-        console.log(payload);
-
-        // ✅ find host participant
-        const host = participantsRef.current.find((p) => p.isHost);
-
-        console.log("Current host:", host);
-
-        // ✅ only the host client should update monitorLogs
-        if (host) {
-          const { socketId, event, time } = payload || {};
-          const logEntry = {
-            socketId,
-            event,
-            time: time || new Date().toISOString(),
-          };
-
-          console.log("host received monitor-event (processed):", logEntry);
-          setMonitorLogs((prev) => [logEntry, ...prev]);
-        }
       });
 
       // === After handlers are ready, request camera/mic ===
@@ -283,5 +260,7 @@ export default function useRoomConnection({
     socketRef,
     webrtcRef,
     monitorLogs,
+    setMonitorLogs,
+    clearMonitorLogs: () => setMonitorLogs([]),
   };
 }

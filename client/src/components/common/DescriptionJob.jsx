@@ -13,6 +13,9 @@ import {
   ListIcon,
   Link2,
 } from "lucide-react";
+import BulletList from "@tiptap/extension-bullet-list";
+import OrderedList from "@tiptap/extension-ordered-list";
+import ListItem from "@tiptap/extension-list-item";
 
 const MenuBar = ({ editor }) => {
   if (!editor) return null;
@@ -86,7 +89,20 @@ export default function RichTextEditor({ value, onChange }) {
 
   const editor = useEditor({
     extensions: [
-      StarterKit,
+      StarterKit.configure({
+        bulletList: false,
+        orderedList: false,
+      }),
+      BulletList.configure({
+        HTMLAttributes: {
+          class: "list-disc pl-4",
+        },
+      }),
+      OrderedList.configure({
+        HTMLAttributes: {
+          class: "list-decimal pl-4",
+        },
+      }),
       Link.configure({
         openOnClick: false,
       }),

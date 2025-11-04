@@ -24,7 +24,7 @@ class ProctoringVerifier:
             min_detection_confidence=0.5
         )
         # Initialize YOLOv8 with a lightweight model
-        self.yolo_model = YOLO("yolov8s.pt")
+        self.yolo_model = YOLO("yolov8m.pt")
         self.reference_image = None
         self.reference_landmarks = None
 

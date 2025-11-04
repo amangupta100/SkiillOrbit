@@ -13,7 +13,7 @@ import {
   TooltipTrigger,
   TooltipContent,
   TooltipProvider,
-} from "@/components/ui/tooltip"; // ⬅️ Import shadcn tooltip
+} from "@/components/ui/tooltip";
 
 function ParticipantCard({
   isLocal,
@@ -27,8 +27,19 @@ function ParticipantCard({
   onFullScreen,
   socketRef,
   roomId,
+  isMonitoring = false, // 🔹 Receives from parent (monitoredParticipants.has(p.socketId))
 }) {
   const firstLetter = participant?.userName?.charAt(0)?.toUpperCase() || "?";
+
+  // 🔹 UPDATED: No emit here - only call onMonitor (which emits once)
+  const handleMonitorClick = () => {
+    if (!socketRef?.current) {
+      console.warn("socketRef missing");
+      return;
+    }
+    // Always call onMonitor - server toggles based on its state
+    onMonitor?.(participant.socketId);
+  };
 
   return (
     <TooltipProvider>
@@ -57,21 +68,12 @@ function ParticipantCard({
 
             <DropdownMenuContent align="end" className="w-44 bg-white">
               <DropdownMenuItem
-                disabled={participant.isHost}
-                onClick={() => {
-                  if (!socketRef?.current) {
-                    console.warn("socketRef missing");
-                    return;
-                  }
-                  socketRef.current.emit("start-monitor", {
-                    targetId: participant.socketId,
-                    roomId,
-                  });
-                }}
+                disabled={participant.isHost} // Only disable for host (can't self-monitor)
+                onClick={handleMonitorClick}
+                className={isMonitoring ? "text-red-600 font-medium" : ""} // Optional: Style "Stop" in red
               >
-                Monitor Activities
+                {isMonitoring ? "Stop Monitoring" : "Monitor Activities"}
               </DropdownMenuItem>
-
               <DropdownMenuItem
                 onClick={() => onFullScreen?.(participant.socketId)}
               >
