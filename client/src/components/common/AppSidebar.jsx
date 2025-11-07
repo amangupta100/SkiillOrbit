@@ -240,76 +240,122 @@ export function DesktopAppSidebar() {
 export function MobileAppSidebar() {
   const router = useRouter();
   const pathname = usePathname();
-  const unreadCount = useChatStore((state) => state.getUnreadCount()); // ✅ Reactive subscription
-
+  const unreadCount = useChatStore((state) => state.getUnreadCount());
   const [loading, setLoading] = useState(false);
 
-  // 🎭 Determine user role
   const role = pathname.includes("/recruiterDashboard")
     ? "recruiter"
     : "job-seeker";
 
-  // 🧭 Role-based navigation
   const navigationItems =
     role === "recruiter"
       ? [
-          { title: "Home", url: "/recruiterDashboard", icon: Home },
           {
+            id: "postings",
             title: "Manage Postings",
             url: "/recruiterDashboard/managePosting&applicants",
             icon: Briefcase,
           },
           {
+            id: "messages",
             title: "Messages",
             url: "/recruiterDashboard/conversations",
             icon: MessageSquare,
           },
           {
+            id: "home",
+            title: "Home",
+            url: "/recruiterDashboard",
+            icon: Home,
+            isCenter: true,
+          },
+          {
+            id: "interviews",
             title: "Manage Interviews",
             url: "/interviews",
             icon: Calendar,
           },
-          { title: "Profile", url: "/recruiterDashboard/profile", icon: User },
+          {
+            id: "profile",
+            title: "Profile",
+            url: "/recruiterDashboard/profile",
+            icon: User,
+          },
         ]
       : [
-          { title: "Home", url: "/job-seekerDashboard", icon: Home },
           {
+            id: "opportunities",
             title: "Opportunities",
             url: "/job-seekerDashboard/opportunities",
             icon: Briefcase,
           },
           {
-            title: "Skill Tests",
-            url: "/job-seekerDashboard/test",
-            icon: FileTextIcon,
-          },
-          {
+            id: "applied",
             title: "Applied",
             url: "/job-seekerDashboard/applied",
             icon: MousePointer2Icon,
           },
           {
-            title: "Manage Interviews",
-            url: "/interviews",
-            icon: Calendar,
+            id: "home",
+            title: "Home",
+            url: "/job-seekerDashboard",
+            icon: Home,
+            isCenter: true,
           },
           {
-            title: "Interview Prep",
-            url: "/job-seekerDashboard/interviewPreparation",
-            icon: IoIosVideocam,
-          },
-          {
+            id: "messages",
             title: "Messages",
             url: "/job-seekerDashboard/conversations",
             icon: MessageSquare,
           },
-          { title: "Profile", url: "/job-seekerDashboard/profile", icon: User },
+          {
+            id: "profile",
+            title: "Profile",
+            url: "/job-seekerDashboard/profile",
+            icon: User,
+          },
+          {
+            id: "tests",
+            title: "Skill Tests",
+            url: "/job-seekerDashboard/test",
+            icon: FileTextIcon,
+          },
+          {
+            id: "interview_prep",
+            title: "Interview Prep",
+            url: "/job-seekerDashboard/interviewPreparation",
+            icon: IoIosVideocam,
+          },
         ];
+
+  // ✅ Visible items — Home stays in center, 2 on left, 2 on right
+  const visibleTitles =
+    role === "recruiter"
+      ? ["Manage Postings", "Messages", "Home", "Profile"]
+      : ["Opportunities", "Profile", "Home", "Applied"];
+
+  const visibleItems = navigationItems.filter((item) =>
+    visibleTitles.includes(item.title)
+  );
+
+  const dropdownItems = navigationItems.filter(
+    (item) => !visibleTitles.includes(item.title)
+  );
+
+  const hidePaths = [
+    "/job-seekerDashboard/test/verifyIdentity",
+    "/job-seekerDashboard/test/instructions",
+    "/job-seekerDashboard/test/testEnvironment",
+    "/job-seekerDashboard/test/submit",
+    "/job-seekerDashboard/interviewPreparation/interview",
+    "/recruiterDashboard/conversations",
+    "/job-seekerDashboard/conversations",
+  ];
+  if (hidePaths.includes(pathname) || pathname.startsWith("/interviews/"))
+    return null;
 
   const homePath =
     role === "recruiter" ? "/recruiterDashboard" : "/job-seekerDashboard";
-
-  // ✅ Unified active logic
   const getIsActive = (itemUrl) => {
     const isHomeActive =
       itemUrl === homePath &&
@@ -339,138 +385,88 @@ export function MobileAppSidebar() {
     }
   };
 
-  // 🧮 Define main visible items
-  const visibleTitles =
-    role === "recruiter"
-      ? ["Home", "Manage Postings", "Messages", "Profile"]
-      : ["Home", "Opportunities", "Applied", "Messages", "Profile"];
-  const visibleItems = navigationItems.filter((item) =>
-    visibleTitles.includes(item.title)
-  );
-  const moreItems = navigationItems.filter(
-    (item) => !visibleTitles.includes(item.title)
-  );
-
-  const hidePaths = [
-    "/job-seekerDashboard/test/verifyIdentity",
-    "/job-seekerDashboard/test/instructions",
-    "/job-seekerDashboard/test/testEnvironment",
-    "/job-seekerDashboard/test/submit",
-    "/job-seekerDashboard/interviewPreparation/interview",
-    "/interviews",
-    "/recruiterDashboard/conversations",
-    "/job-seekerDashboard/conversations",
-  ];
-  const shouldHide =
-    hidePaths.includes(pathname) || pathname.startsWith("/interviews/");
-  if (shouldHide) return null;
-
-  // Left items based on role
-  const leftItems =
-    role === "recruiter"
-      ? visibleItems.filter(
-          (item) =>
-            item.title === "Manage Postings" || item.title === "Messages"
-        )
-      : visibleItems.filter(
-          (item) => item.title === "Opportunities" || item.title === "Applied"
-        );
-
-  // Right items based on role
-  const rightItems =
-    role === "recruiter"
-      ? visibleItems.filter((item) => item.title === "Profile")
-      : visibleItems.filter(
-          (item) => item.title === "Messages" || item.title === "Profile"
-        );
-
-  const renderNavItem = (item, isLeft = false) => {
-    const Icon = item.icon;
-    const { isActive } = getIsActive(item.url);
-    const showBadge = item.title === "Messages" && unreadCount > 0;
-
-    return (
-      <Link
-        key={item.title}
-        href={item.url}
-        className="relative flex flex-col items-center justify-center px-3 transition-all duration-300 group min-w-[64px]"
-      >
-        <div className="relative">
-          <Icon
-            className={cn(
-              "w-6 h-6 mb-1 transition-all duration-300",
-              isActive
-                ? "text-blue-600 scale-110"
-                : "text-gray-500 group-hover:text-gray-800"
-            )}
-          />
-          {showBadge && (
-            <span className="absolute -top-1 -right-2 bg-red-500 text-white text-[10px] font-semibold rounded-full w-4 h-4 flex items-center justify-center">
-              {unreadCount > 9 ? "9+" : unreadCount}
-            </span>
-          )}
-        </div>
-        <span
-          className={cn(
-            "text-xs font-medium transition-all duration-300",
-            isActive ? "text-blue-600" : "text-gray-600"
-          )}
-        >
-          {item.title}
-        </span>
-      </Link>
-    );
-  };
-
   return (
-    <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 shadow-2xl z-50 md:hidden">
-      <div className="relative flex items-center justify-between px-4 pb-safe">
-        {/* 🔹 Left items */}
-        <div className="flex flex-1 justify-evenly mr-6">
-          {leftItems.map((item) => renderNavItem(item, true))}
-        </div>
-
-        {/* 🔹 Center floating home button */}
-        {visibleItems
-          .filter((item) => item.title === "Home")
-          .map((item) => {
+    <nav className="fixed bottom-0 left-0 right-0 z-50 md:hidden">
+      <div className="relative bg-[hsl(var(--nav-background))] border-t border-[hsl(var(--nav-background))]/50 shadow-2xl">
+        <div className="flex items-center justify-around px-4 pb-safe">
+          {visibleItems.map((item) => {
             const Icon = item.icon;
             const { isActive, isHomeActive } = getIsActive(item.url);
+
+            if (item.isCenter) {
+              return (
+                <Link
+                  key={item.id}
+                  href={item.url}
+                  className="flex flex-col items-center justify-center -mt-14 transition-all duration-300 group"
+                >
+                  <div
+                    className={cn(
+                      "w-16 h-16 rounded-full flex items-center justify-center border-[1.6px] border-zinc-200 mb-1 transition-all duration-300 shadow-lg",
+                      isHomeActive
+                        ? "bg-[hsl(var(--nav-center-active))] shadow-[hsl(var(--nav-center-active))]/50"
+                        : "bg-[hsl(var(--nav-center-bg))] group-hover:bg-[hsl(var(--nav-center-bg))]/80"
+                    )}
+                  >
+                    <Icon
+                      className={cn(
+                        "w-7 h-7 transition-all duration-300",
+                        isHomeActive
+                          ? "text-white scale-110"
+                          : "text-[hsl(var(--nav-foreground))] group-hover:text-white"
+                      )}
+                    />
+                  </div>
+                  <span
+                    className={cn(
+                      "text-xs font-medium transition-all duration-300",
+                      isHomeActive
+                        ? "text-[hsl(var(--nav-active))]"
+                        : "text-[hsl(var(--nav-foreground))] group-hover:text-white"
+                    )}
+                  >
+                    {item.title}
+                  </span>
+                </Link>
+              );
+            }
+
             return (
               <Link
-                key={item.title}
+                key={item.id}
                 href={item.url}
-                className="absolute -top-8 left-1/2 -translate-x-1/2 flex flex-col items-center justify-center transition-all duration-300 group"
+                className="flex flex-col items-center justify-center py-3 px-3 transition-all duration-300 group min-w-[64px]"
               >
-                <div
+                <Icon
                   className={cn(
-                    "w-16 h-16 rounded-full flex items-center justify-center shadow-lg transition-all duration-300",
-                    isHomeActive ? "bg-blue-500" : "bg-blue-400/70"
+                    "w-6 h-6 mb-1 transition-all duration-300",
+                    isActive
+                      ? "text-[hsl(var(--nav-active))] scale-110"
+                      : "text-[hsl(var(--nav-foreground))] group-hover:text-white"
+                  )}
+                />
+                <span
+                  className={cn(
+                    "text-xs font-medium transition-all duration-300",
+                    isActive
+                      ? "text-[hsl(var(--nav-active))]"
+                      : "text-[hsl(var(--nav-foreground))] group-hover:text-white"
                   )}
                 >
-                  <Icon
-                    className={cn(
-                      "w-7 h-7 z-[100] transition-all duration-300",
-                      isActive
-                        ? "text-white scale-110"
-                        : "text-white/90 group-hover:text-white"
-                    )}
-                  />
-                </div>
+                  {item.title}
+                </span>
               </Link>
             );
           })}
 
-        {/* 🔹 Right items + More */}
-        <div className="flex flex-1 justify-evenly ml-6">
-          {rightItems.map((item) => renderNavItem(item))}
-
-          {/* 🔹 More dropdown */}
+          {/* ✅ 3-Dots Dropdown */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <button className="flex flex-col items-center justify-center py-3 px-3 transition-all duration-300 group min-w-[64px]">
-                <MoreHorizontal className="w-6 h-6 mb-1 text-gray-500 group-hover:text-gray-800" />
-                <span className="text-xs font-medium text-gray-600">More</span>
+                <MoreHorizontal className="w-6 h-6 mb-1 text-[hsl(var(--nav-foreground))] group-hover:text-white" />
+                <span className="text-xs font-medium text-[hsl(var(--nav-foreground))]">
+                  More
+                </span>
               </button>
             </DropdownMenuTrigger>
 
@@ -480,10 +476,9 @@ export function MobileAppSidebar() {
               sideOffset={8}
               className="w-52"
             >
-              {/* Extra items not visible in main bar */}
-              {moreItems.map((item, index) => (
-                <React.Fragment key={item.title}>
-                  {index > 0 && <DropdownMenuSeparator />}
+              {dropdownItems.map((item, idx) => (
+                <React.Fragment key={item.id}>
+                  {idx > 0 && <DropdownMenuSeparator />}
                   <DropdownMenuItem asChild>
                     <Link
                       href={item.url}
@@ -495,9 +490,10 @@ export function MobileAppSidebar() {
                   </DropdownMenuItem>
                 </React.Fragment>
               ))}
-              {moreItems.length > 0 && <DropdownMenuSeparator />}
 
-              {/* Logout always last */}
+              {dropdownItems.length > 0 && <DropdownMenuSeparator />}
+
+              {/* ✅ Logout */}
               <DropdownMenuItem onClick={handleLogout} disabled={loading}>
                 <FaPowerOff className="w-4 h-4 mr-2 text-red-600" />
                 {loading ? (
