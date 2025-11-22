@@ -183,25 +183,6 @@ const SidebarContent = () => {
     fetchChatList();
   }, [fetchChatList]);
 
-  // 🟢 Sync selected chat with URL pathname and search params
-  useEffect(() => {
-    const chatIdFromUrl = searchParams.get("chat_id");
-
-    if (pathname === "/recruiterDashboard/conversations" && !chatIdFromUrl) {
-      if (selectedChat) {
-        setSelectedChat(null);
-      }
-      return;
-    }
-
-    if (chatIdFromUrl && chats.length > 0) {
-      const chat = chats.find((c) => c._id === chatIdFromUrl);
-      if (chat && selectedChat?._id !== chat._id) {
-        handleChatSelect(chat); // Reuse the select logic to fetch messages
-      }
-    }
-  }, [pathname, searchParams, chats, selectedChat, handleChatSelect]); // 👈 Added dep
-
   // 🔹 Shared logic for selecting a chat (fetch messages, open socket, etc.) - 👈 Memoized
   const handleChatSelect = useCallback(
     async (chat) => {
@@ -233,6 +214,25 @@ const SidebarContent = () => {
     },
     [setSelectedChat, openChat]
   );
+
+  // 🟢 Sync selected chat with URL pathname and search params
+  useEffect(() => {
+    const chatIdFromUrl = searchParams.get("chat_id");
+
+    if (pathname === "/recruiterDashboard/conversations" && !chatIdFromUrl) {
+      if (selectedChat) {
+        setSelectedChat(null);
+      }
+      return;
+    }
+
+    if (chatIdFromUrl && chats.length > 0) {
+      const chat = chats.find((c) => c._id === chatIdFromUrl);
+      if (chat && selectedChat?._id !== chat._id) {
+        handleChatSelect(chat); // Reuse the select logic to fetch messages
+      }
+    }
+  }, [pathname, searchParams, chats, selectedChat, handleChatSelect]); // 👈 Added dep
 
   // 🟣 Handle search - 👈 Added cleanup
   useEffect(() => {
@@ -447,7 +447,7 @@ const SidebarContent = () => {
               Search Results
             </h3>
           </div>
-          <div className="fixed left-0 top-[100px] w-[320px] lg:w-[380px] z-[1000]">
+          <div className="fixed left-0 top-[130px] w-[320px] lg:w-[380px] z-[1000]">
             {" "}
             {/* 👈 Fixed pos for sidebar width */}
             <ScrollArea className="w-full h-80 p-1 bg-white shadow-lg border border-gray-200 rounded-xl overflow-auto">

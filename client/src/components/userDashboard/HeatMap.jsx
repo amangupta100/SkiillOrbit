@@ -126,7 +126,11 @@ export default function ActivityHeatmap() {
           {loading ? (
             <SkeletonGrid />
           ) : (
-            <div id="cal-heatmap" className="mb-4"></div>
+            <>
+              <div id="cal-heatmap" className="mb-4"></div>
+              <div id="legend" className="mt-4"></div>{" "}
+              {/* Add this for Legend plugin */}
+            </>
           )}
         </div>
       </div>
@@ -138,6 +142,10 @@ export default function ActivityHeatmap() {
         #cal-heatmap {
           margin-top: 10px;
           font-size: 14px;
+        }
+        #legend {
+          margin-top: 10px;
+          font-size: 12px;
         }
         .ch-subdomain-bg {
           rx: 3;
