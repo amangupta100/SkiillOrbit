@@ -82,11 +82,20 @@ export default function ActivityHeatmap() {
           [
             Legend,
             {
-              itemSelector: "#legend",
-              width: 200,
-              shape: "rect",
+              width: 150,
+              itemSelector: "#cal-heatmap",
+              shapePadding: 3,
               gutter: 4,
-              label: "Activity count",
+              radius: 2,
+              label: "Activity Count",
+              ticks: [0, 1], // define legend steps
+              scale: {
+                color: {
+                  type: "linear",
+                  domain: [0, 1],
+                  range: ["#d1d5db", "#22c55e"],
+                },
+              },
             },
           ],
         ]
@@ -126,11 +135,7 @@ export default function ActivityHeatmap() {
           {loading ? (
             <SkeletonGrid />
           ) : (
-            <>
-              <div id="cal-heatmap" className="mb-4"></div>
-              <div id="legend" className="mt-4"></div>{" "}
-              {/* Add this for Legend plugin */}
-            </>
+            <div id="cal-heatmap" className="mb-4"></div>
           )}
         </div>
       </div>
@@ -142,10 +147,6 @@ export default function ActivityHeatmap() {
         #cal-heatmap {
           margin-top: 10px;
           font-size: 14px;
-        }
-        #legend {
-          margin-top: 10px;
-          font-size: 12px;
         }
         .ch-subdomain-bg {
           rx: 3;
