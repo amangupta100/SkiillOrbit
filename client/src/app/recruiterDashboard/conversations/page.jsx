@@ -30,7 +30,7 @@ import { Calendar, Plus } from "lucide-react";
 import InterviewScheduling from "@/components/recruiterDashboard/Interview/InterviewScheduling";
 import CreateRoomModal from "@/components/recruiterDashboard/Interview/InterviewCreationModal";
 
-const ChatPage = () => {
+const page = () => {
   const router = useRouter();
   const [inputValue, setInputValue] = useState("");
   const [isSending, setIsSending] = useState(false);
@@ -523,4 +523,4 @@ const ChatPage = () => {
   );
 };
 
-export default ChatPage;
+export default page;

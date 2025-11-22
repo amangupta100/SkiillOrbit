@@ -1,6 +1,6 @@
 "use client";
 import { Input } from "@/components/ui/input";
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, Suspense, useCallback } from "react"; // 👈 Added Suspense, useCallback
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
 import Image from "next/image";
@@ -20,12 +20,12 @@ import { toast } from "sonner";
 import useAuthStore from "@/store/authStore";
 import useChatSocket from "@/lib/common/ChatSocket";
 
-// ✅ Chat List Item
+// ✅ Chat List Item - 👈 Fixed unread prop to expect per-chat count
 const ChatListItem = ({
   chat,
   isSelected,
   onClick,
-  unreadMessCount: getUnreadCount,
+  unreadMessCount, // Now per-chat
 }) => {
   const avatarSrc =
     chat?.user?.image?.data || chat?.avatar?.data || chat?.image?.data;
@@ -69,9 +69,9 @@ const ChatListItem = ({
             {chat?.lastMessage?.content || "No messages yet"}
           </p>
 
-          {getUnreadCount > 0 && (
+          {unreadMessCount > 0 && (
             <span className="ml-2 bg-blue-500 text-white text-[10px] font-semibold rounded-full w-5 h-5 flex items-center justify-center">
-              {getUnreadCount > 9 ? "9+" : getUnreadCount}
+              {unreadMessCount > 9 ? "9+" : unreadMessCount}
             </span>
           )}
         </div>
@@ -80,7 +80,7 @@ const ChatListItem = ({
   );
 };
 
-// ✅ Search Result Item
+// ✅ Search Result Item (unchanged)
 const SearchResultItem = ({ applicant, onClick }) => {
   const user = applicant.user || {};
   const role = applicant.job?.role || applicant.internship?.role || "Applied";
@@ -124,7 +124,31 @@ const SearchResultItem = ({ applicant, onClick }) => {
   );
 };
 
-const ChatSidebar = () => {
+// 👈 Fallback for Suspense
+const SidebarFallback = () => (
+  <div className="flex flex-col h-full w-full bg-white border-r">
+    <div className="pt-4 px-3 w-full border-b bg-white sticky top-0 z-10 space-y-4">
+      <Skeleton className="h-12 w-12 rounded-full mx-auto" />
+      <Skeleton className="h-10 w-full" />
+    </div>
+    <ScrollArea className="flex-1">
+      <div className="p-4 space-y-3">
+        {[...Array(5)].map((_, i) => (
+          <div key={i} className="flex items-center gap-3">
+            <Skeleton className="w-12 h-12 rounded-full" />
+            <div className="flex-1 space-y-1">
+              <Skeleton className="h-4 w-[70%]" />
+              <Skeleton className="h-3 w-[50%]" />
+            </div>
+          </div>
+        ))}
+      </div>
+    </ScrollArea>
+  </div>
+);
+
+const SidebarContent = () => {
+  // 👈 Extracted for Suspense
   const [search, setSearch] = useState("");
   const [searchLoading, setSearchLoading] = useState(false);
   const [searchResults, setSearchResults] = useState([]);
@@ -137,7 +161,7 @@ const ChatSidebar = () => {
 
   const currentUser = recruiter || user;
   const currentRole = recruiter ? "Recruiter" : "User";
-  const currentUserId = currentUser?.id || currentUser?.id;
+  const currentUserId = currentUser?.id;
 
   const {
     chats = [],
@@ -145,7 +169,7 @@ const ChatSidebar = () => {
     setSelectedChat,
     fetchChatList,
     loading,
-    getUnreadCount,
+    getUnreadCount, // 👈 Assume this is per-chat now; adjust store if needed
   } = useChatStore();
 
   // ✅ Socket hook for real-time seen updates
@@ -176,35 +200,41 @@ const ChatSidebar = () => {
         handleChatSelect(chat); // Reuse the select logic to fetch messages
       }
     }
-  }, [pathname, searchParams, chats, selectedChat]);
+  }, [pathname, searchParams, chats, selectedChat, handleChatSelect]); // 👈 Added dep
 
-  // 🔹 Shared logic for selecting a chat (fetch messages, open socket, etc.)
-  const handleChatSelect = async (chat) => {
-    setSelectedChat(chat);
-    useChatStore.getState().setMessageLoading(true);
+  // 🔹 Shared logic for selecting a chat (fetch messages, open socket, etc.) - 👈 Memoized
+  const handleChatSelect = useCallback(
+    async (chat) => {
+      setSelectedChat(chat);
+      useChatStore.getState().setMessageLoading(true);
 
-    try {
-      const { data } = await API.get(
-        `/common/conversation/messages/${chat._id}`
-      );
-      if (data.success) {
-        useChatStore.getState().setMessages(chat._id, data.messages);
+      try {
+        const { data } = await API.get(
+          `/common/conversation/messages/${chat._id}`
+        );
+        if (data.success) {
+          useChatStore.getState().setMessages(chat._id, data.messages);
 
-        const currentUserId =
-          useAuthStore.getState().user?.id ||
-          useRecruiterAuthStore.getState().recruiter?.id;
+          const currentUserId =
+            useAuthStore.getState().user?.id ||
+            useRecruiterAuthStore.getState().recruiter?.id;
 
-        // ✅ Call already-defined function
-        openChat({ chatId: chat._id, viewerId: currentUserId });
+          // ✅ Call already-defined function
+          openChat({ chatId: chat._id, viewerId: currentUserId });
+        } else {
+          toast.warning("Failed to load messages");
+        }
+      } catch (err) {
+        console.error(err);
+        toast.error("Error loading chat");
+      } finally {
+        useChatStore.getState().setMessageLoading(false);
       }
-    } catch (err) {
-      console.error(err);
-    } finally {
-      useChatStore.getState().setMessageLoading(false);
-    }
-  };
+    },
+    [setSelectedChat, openChat]
+  );
 
-  // 🟣 Handle search
+  // 🟣 Handle search - 👈 Added cleanup
   useEffect(() => {
     if (search.trim().length === 0) {
       setSearchResults([]);
@@ -220,6 +250,7 @@ const ChatSidebar = () => {
           )}`
         );
         if (data.success) setSearchResults(data.applicants || []);
+        else toast.warning("Search failed");
       } catch (err) {
         toast.error(err.message);
         setSearchResults([]);
@@ -228,87 +259,91 @@ const ChatSidebar = () => {
       }
     }, 600);
 
-    return () => clearTimeout(delay);
+    return () => clearTimeout(delay); // 👈 Cleanup
   }, [search]);
 
   // 🔹 Handle selecting search result
-  const handleSearchResultClick = async (applicant) => {
-    try {
-      const receiverId = applicant.user._id;
-      const existingChat = chats.find((chat) => chat.userId === receiverId);
+  const handleSearchResultClick = useCallback(
+    async (applicant) => {
+      try {
+        const receiverId = applicant.user._id;
+        const existingChat = chats.find((chat) => chat.userId === receiverId);
 
-      let chat;
-      let chatId;
+        let chat;
+        let chatId;
 
-      if (existingChat) {
-        // Use existing chat
-        chatId = existingChat._id;
-        // Update with latest applicant data if needed (e.g., online status)
-        chat = {
-          ...existingChat,
-          name: applicant.user.name,
-          avatar: applicant.user.image?.data,
-          user: applicant.user,
-          online: applicant.user.onlineStatus || false,
-          lastseen: applicant.user.lastActiveDisplay || "Unknown",
-        };
-      } else {
-        // Create new conversation
-        const currentUserId = recruiter?.id || user?.id;
-        const currentUserModel = recruiter ? "Recruiter" : "User";
-        const receiverModel = "User"; // Assuming applicants are Users
+        if (existingChat) {
+          // Use existing chat
+          chatId = existingChat._id;
+          // Update with latest applicant data if needed (e.g., online status)
+          chat = {
+            ...existingChat,
+            name: applicant.user.name,
+            avatar: applicant.user.image?.data,
+            user: applicant.user,
+            online: applicant.user.onlineStatus || false,
+            lastseen: applicant.user.lastActiveDisplay || "Unknown",
+          };
+        } else {
+          // Create new conversation
+          const currentUserId = recruiter?.id || user?.id;
+          const currentUserModel = recruiter ? "Recruiter" : "User";
+          const receiverModel = "User"; // Assuming applicants are Users
 
-        // Call backend to get or create chat
-        const { data } = await API.post("/common/conversation/GetPrivateChat", {
-          senderId: currentUserId,
-          senderModel: currentUserModel,
-          receiverId,
-          receiverModel,
-        });
+          // Call backend to get or create chat
+          const { data } = await API.post(
+            "/common/conversation/GetPrivateChat",
+            {
+              senderId: currentUserId,
+              senderModel: currentUserModel,
+              receiverId,
+              receiverModel,
+            }
+          );
 
-        if (!data.success) {
-          toast.error(data.message || "Failed to start chat");
-          return;
+          if (!data.success) {
+            toast.error(data.message || "Failed to start chat");
+            return;
+          }
+
+          chatId = data.chatId;
+          chat = {
+            _id: chatId,
+            name: applicant.user.name,
+            avatar: applicant.user.image?.data,
+            user: applicant.user,
+            userId: receiverId, // For reference
+            online: applicant.user.onlineStatus || false,
+            lastseen: applicant.user.lastActiveDisplay || "Unknown",
+            // Add other fields as needed, e.g., from a fetch if more details required
+          };
+
+          // Add to chats if new
+          const prevChats = useChatStore.getState().chats || [];
+          const updatedChats = [
+            ...prevChats.filter((c) => c._id !== chatId),
+            chat,
+          ];
+          useChatStore.getState().setChats(updatedChats);
         }
 
-        chatId = data.chatId;
-        chat = {
-          _id: chatId,
-          name: applicant.user.name,
-          avatar: applicant.user.image?.data,
-          user: applicant.user,
-          userId: receiverId, // For reference
-          online: applicant.user.onlineStatus || false,
-          lastseen: applicant.user.lastActiveDisplay || "Unknown",
-          // Add other fields as needed, e.g., from a fetch if more details required
-        };
-
-        // Add to chats if new
-        const prevChats = useChatStore.getState().chats || [];
-        const updatedChats = [
-          ...prevChats.filter((c) => c._id !== chatId),
-          chat,
-        ];
-        useChatStore.getState().setChats(updatedChats);
+        // Select and navigate (common for both cases)
+        handleChatSelect(chat);
+        router.push(`/recruiterDashboard/conversations?chat_id=${chatId}`);
+      } catch (err) {
+        toast.error("Error starting chat: " + err.message);
+      } finally {
+        setSearch("");
+        setSearchResults([]);
       }
-
-      // Select and navigate (common for both cases)
-      handleChatSelect(chat);
-      router.push(`/recruiterDashboard/conversations?chat_id=${chatId}`);
-    } catch (err) {
-      toast.error("Error starting chat: " + err.message);
-    } finally {
-      setSearch("");
-      setSearchResults([]);
-    }
-  };
+    },
+    [chats, recruiter, user, handleChatSelect, router]
+  ); // 👈 Added deps
 
   // 🔹 Avatar setup
   const avatarSrc = currentUser?.image?.data;
   const isBase64 =
     avatarSrc && typeof avatarSrc === "string" && avatarSrc.startsWith("data:");
-
-  const unreadCount = getUnreadCount();
 
   return (
     <div className="flex flex-col h-full w-full bg-white border-r">
@@ -404,24 +439,18 @@ const ChatSidebar = () => {
         )}
       </div>
 
-      {/* 🔹 SEARCH RESULTS */}
+      {/* 🔹 SEARCH RESULTS - 👈 Fixed positioning with fixed for sidebar */}
       {search.trim() && (
-        <div className="border-b bg-gray-50">
+        <div className="border-b bg-gray-50 relative">
           <div className="p-2 border-b">
             <h3 className="text-sm font-medium text-gray-700">
               Search Results
             </h3>
           </div>
-          <div className="relative w-full">
-            {/* 🔍 Scrollable Search Results Dropdown */}
-            <ScrollArea
-              className="
-      absolute top-full left-0 w-full 
-      h-80 p-1 mt-2 
-      bg-white shadow-lg border border-gray-200 rounded-xl 
-      z-[1000] overflow-auto
-    "
-            >
+          <div className="fixed left-0 top-[100px] w-[320px] lg:w-[380px] z-[1000]">
+            {" "}
+            {/* 👈 Fixed pos for sidebar width */}
+            <ScrollArea className="w-full h-80 p-1 bg-white shadow-lg border border-gray-200 rounded-xl overflow-auto">
               {searchLoading ? (
                 <div className="space-y-3 p-4">
                   {[...Array(8)].map((_, i) => (
@@ -471,22 +500,25 @@ const ChatSidebar = () => {
             ))}
           </div>
         ) : chats.length > 0 ? (
-          chats.map((chat) => (
-            <ChatListItem
-              key={chat._id}
-              chat={chat}
-              unreadMessCount={unreadCount}
-              isSelected={selectedChat?._id === chat._id}
-              onClick={() => {
-                handleChatSelect(chat);
-                router.push(
-                  `/${
-                    recruiter ? "recruiterDashboard" : "job-seekerDashboard"
-                  }/conversations?chat_id=${chat._id}`
-                );
-              }}
-            />
-          ))
+          chats.map((chat) => {
+            const unreadMessCount = getUnreadCount(chat._id); // 👈 Per-chat now
+            return (
+              <ChatListItem
+                key={chat._id}
+                chat={chat}
+                unreadMessCount={unreadMessCount}
+                isSelected={selectedChat?._id === chat._id}
+                onClick={() => {
+                  handleChatSelect(chat);
+                  router.push(
+                    `/${
+                      recruiter ? "recruiterDashboard" : "job-seekerDashboard"
+                    }/conversations?chat_id=${chat._id}`
+                  );
+                }}
+              />
+            );
+          })
         ) : (
           <div className="p-6 text-center text-gray-500 text-sm">
             No chats yet
@@ -496,5 +528,11 @@ const ChatSidebar = () => {
     </div>
   );
 };
+
+const ChatSidebar = () => (
+  <Suspense fallback={<SidebarFallback />}>
+    <SidebarContent />
+  </Suspense>
+);
 
 export default ChatSidebar;

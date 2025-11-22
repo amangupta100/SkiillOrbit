@@ -11,9 +11,27 @@ import {
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { X } from "lucide-react";
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react"; // 👈 Added Suspense
 
-export default function JobSeekerFilterModal({ closeModal, isOpen }) {
+// 👈 Fallback for Suspense (simple loading)
+const FilterFallback = () => (
+  <div className="fixed inset-0 z-[1000] flex justify-center h-screen py-8 backdrop-blur-md bg-black/60">
+    <div className="w-[90%] sm:w-[75%] md:w-[60%] lg:w-[35%] rounded-lg min-h-fit py-6 px-5 bg-white max-h-[90vh] overflow-y-auto shadow-xl animate-pulse">
+      <div className="h-4 bg-gray-300 rounded w-1/2 mb-4" />
+      <div className="space-y-4">
+        {[...Array(6)].map((_, i) => (
+          <div key={i} className="space-y-2">
+            <div className="h-3 bg-gray-300 rounded w-1/4" />
+            <div className="h-8 bg-gray-300 rounded" />
+          </div>
+        ))}
+      </div>
+    </div>
+  </div>
+);
+
+const FilterContent = ({ closeModal, isOpen }) => {
+  // 👈 Extracted for Suspense
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -53,8 +71,29 @@ export default function JobSeekerFilterModal({ closeModal, isOpen }) {
     }));
   }, [searchParams]);
 
-  // Reset filters (and URL)
+  // Reset filters (and URL) - 👈 Preserve other params like sort_by
   const resetFilters = () => {
+    const newParams = new URLSearchParams(searchParams.toString());
+    // Clear filter params only
+    [
+      "jobType",
+      "duration",
+      "stipend_min",
+      "stipend_max",
+      "experience",
+      "salary_min",
+      "salary_max",
+      "workMode",
+      "companyType",
+      "num_positions",
+      "benchmark_score",
+      "datePosted",
+    ].forEach((key) => newParams.delete(key));
+    const basePath = pathname.includes("saved_jobs")
+      ? "/job-seekerDashboard/saved_jobs"
+      : "/job-seekerDashboard/opportunities";
+    router.push(`${basePath}?${newParams.toString()}`);
+    // Reset state
     setFilters({
       jobType: "",
       duration: "",
@@ -69,49 +108,77 @@ export default function JobSeekerFilterModal({ closeModal, isOpen }) {
       benchmarkScore: "",
       datePosted: "",
     });
-    router.push("/job-seekerDashboard/opportunities");
   };
 
-  // Apply filters (push to URL)
+  // Apply filters (push to URL) - 👈 Use dynamic pathname
   const applyFilters = () => {
-    const query = new URLSearchParams();
+    const query = new URLSearchParams(searchParams.toString()); // Preserve existing like sort_by
 
     // Job Type
     if (filters.jobType && filters.jobType !== "All") {
-      query.append("jobType", filters.jobType);
+      query.set("jobType", filters.jobType);
+    } else {
+      query.delete("jobType");
     }
 
     // Conditional filters
     if (filters.jobType === "Internship") {
       if (filters.duration && filters.duration !== "All")
-        query.append("duration", filters.duration);
-      if (filters.stipendMin) query.append("stipend_min", filters.stipendMin);
-      if (filters.stipendMax) query.append("stipend_max", filters.stipendMax);
+        query.set("duration", filters.duration);
+      else query.delete("duration");
+      if (filters.stipendMin) query.set("stipend_min", filters.stipendMin);
+      else query.delete("stipend_min");
+      if (filters.stipendMax) query.set("stipend_max", filters.stipendMax);
+      else query.delete("stipend_max");
+      // Clear job fields
+      ["experience", "salary_min", "salary_max"].forEach((key) =>
+        query.delete(key)
+      );
     } else if (filters.jobType === "Job") {
       if (filters.experience && filters.experience !== "All")
-        query.append("experience", filters.experience);
-      if (filters.salaryMin) query.append("salary_min", filters.salaryMin);
-      if (filters.salaryMax) query.append("salary_max", filters.salaryMax);
+        query.set("experience", filters.experience);
+      else query.delete("experience");
+      if (filters.salaryMin) query.set("salary_min", filters.salaryMin);
+      else query.delete("salary_min");
+      if (filters.salaryMax) query.set("salary_max", filters.salaryMax);
+      else query.delete("salary_max");
+      // Clear internship fields
+      ["duration", "stipend_min", "stipend_max"].forEach((key) =>
+        query.delete(key)
+      );
+    } else {
+      // All: Clear conditionals
+      [
+        "duration",
+        "stipend_min",
+        "stipend_max",
+        "experience",
+        "salary_min",
+        "salary_max",
+      ].forEach((key) => query.delete(key));
     }
 
     // Always available filters
     if (filters.workMode && filters.workMode !== "All")
-      query.append("workMode", filters.workMode);
+      query.set("workMode", filters.workMode);
+    else query.delete("workMode");
     if (filters.companyType && filters.companyType !== "All")
-      query.append("companyType", filters.companyType);
-    if (filters.numPositions)
-      query.append("num_positions", filters.numPositions);
+      query.set("companyType", filters.companyType);
+    else query.delete("companyType");
+    if (filters.numPositions) query.set("num_positions", filters.numPositions);
+    else query.delete("num_positions");
     if (filters.benchmarkScore)
-      query.append("benchmark_score", filters.benchmarkScore);
+      query.set("benchmark_score", filters.benchmarkScore);
+    else query.delete("benchmark_score");
     if (filters.datePosted && filters.datePosted !== "All")
-      query.append("datePosted", filters.datePosted);
+      query.set("datePosted", filters.datePosted);
+    else query.delete("datePosted");
 
-    // If it's saved jobs view
-    if (pathname.includes("saved_jobs")) {
-      router.push(`/job-seekerDashboard/saved_jobs?${query.toString()}`);
-    } else {
-      router.push(`/job-seekerDashboard/opportunities?${query.toString()}`);
-    }
+    // Dynamic path
+    const basePath = pathname.includes("saved_jobs")
+      ? "/job-seekerDashboard/saved_jobs"
+      : "/job-seekerDashboard/opportunities";
+    router.push(`${basePath}?${query.toString()}`);
 
     closeModal();
   };
@@ -120,6 +187,31 @@ export default function JobSeekerFilterModal({ closeModal, isOpen }) {
 
   const isInternship = filters.jobType === "Internship";
   const isJob = filters.jobType === "Job";
+
+  // 👈 Validate numerics (e.g., min <= max)
+  const validateRanges = () => {
+    if (isInternship) {
+      const min = parseInt(filters.stipendMin) || 0;
+      const max = parseInt(filters.stipendMax) || Infinity;
+      if (min > max) {
+        toast.warning("Stipend Min cannot exceed Max");
+        return false;
+      }
+    } else if (isJob) {
+      const min = parseInt(filters.salaryMin) || 0;
+      const max = parseInt(filters.salaryMax) || Infinity;
+      if (min > max) {
+        toast.warning("Salary Min cannot exceed Max");
+        return false;
+      }
+    }
+    return true;
+  };
+
+  const onApply = () => {
+    if (!validateRanges()) return;
+    applyFilters();
+  };
 
   return (
     <div className="fixed inset-0 z-[1000] flex justify-center h-screen overflow-y-auto py-8 backdrop-blur-md bg-black/60">
@@ -202,6 +294,7 @@ export default function JobSeekerFilterModal({ closeModal, isOpen }) {
               <Label>Stipend Min (₹/month)</Label>
               <Input
                 type="number"
+                min="0"
                 placeholder="e.g. 5000"
                 value={filters.stipendMin}
                 onChange={(e) =>
@@ -213,6 +306,7 @@ export default function JobSeekerFilterModal({ closeModal, isOpen }) {
               <Label>Stipend Max (₹/month)</Label>
               <Input
                 type="number"
+                min="0"
                 placeholder="e.g. 20000"
                 value={filters.stipendMax}
                 onChange={(e) =>
@@ -253,6 +347,7 @@ export default function JobSeekerFilterModal({ closeModal, isOpen }) {
               <Label>Salary Min (₹/month)</Label>
               <Input
                 type="number"
+                min="0"
                 placeholder="e.g. 30000"
                 value={filters.salaryMin}
                 onChange={(e) =>
@@ -264,6 +359,7 @@ export default function JobSeekerFilterModal({ closeModal, isOpen }) {
               <Label>Salary Max (₹/month)</Label>
               <Input
                 type="number"
+                min="0"
                 placeholder="e.g. 100000"
                 value={filters.salaryMax}
                 onChange={(e) =>
@@ -323,6 +419,7 @@ export default function JobSeekerFilterModal({ closeModal, isOpen }) {
           <Label>Min Number of Positions</Label>
           <Input
             type="number"
+            min="0"
             placeholder="e.g. 1"
             value={filters.numPositions}
             onChange={(e) =>
@@ -336,12 +433,13 @@ export default function JobSeekerFilterModal({ closeModal, isOpen }) {
           <Label>Min Benchmark Score</Label>
           <Input
             type="number"
+            min="0"
+            max="100"
             placeholder="e.g. 70"
             value={filters.benchmarkScore}
             onChange={(e) =>
               setFilters((p) => ({ ...p, benchmarkScore: e.target.value }))
             }
-            max="100"
           />
         </div>
 
@@ -355,7 +453,7 @@ export default function JobSeekerFilterModal({ closeModal, isOpen }) {
             }
           >
             <SelectTrigger className="w-full">
-              <SelectValue placeholder="Select duration" />
+              <SelectValue placeholder="Select date range" />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="All">All Time</SelectItem>
@@ -370,12 +468,20 @@ export default function JobSeekerFilterModal({ closeModal, isOpen }) {
         <div className="flex justify-between mt-8">
           <Button
             className="bg-black text-white hover:bg-black/90 w-full"
-            onClick={applyFilters}
+            onClick={onApply}
           >
             Apply Filters
           </Button>
         </div>
       </div>
     </div>
+  );
+};
+
+export default function JobSeekerFilterModal({ closeModal, isOpen }) {
+  return (
+    <Suspense fallback={<FilterFallback />}>
+      <FilterContent closeModal={closeModal} isOpen={isOpen} />
+    </Suspense>
   );
 }

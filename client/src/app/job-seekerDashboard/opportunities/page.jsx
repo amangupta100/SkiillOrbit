@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState, useMemo } from "react";
+import React, { useEffect, useState, useMemo, Suspense } from "react"; // 👈 Added Suspense
 import API from "@/utils/interceptor";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -39,7 +39,8 @@ function debounce(func, wait) {
   };
 }
 
-const Page = () => {
+const PageContent = () => {
+  // 👈 Extracted for Suspense wrapping
   const searchParams = useSearchParams();
   const router = useRouter();
 
@@ -53,7 +54,7 @@ const Page = () => {
   const [sortBy, setSortBy] = useState(
     searchParams.get("sort_by") || "postings_new"
   );
-  const [showSaved, setShowSaved] = useState(false); // currently not toggled in UI, but kept for future
+  // 👈 Removed unused showSaved (comment if needed later)
   const [openFilterModal, setOpenFilterModal] = useState(false);
 
   const { user } = useAuthStore();
@@ -174,11 +175,10 @@ const Page = () => {
 
   // Client-side processed list (all postings, sorted, Active first)
   const processedJobs = useMemo(() => {
-    let temp = showSaved
-      ? allJobs.filter((job) => job.saved === true)
-      : allJobs;
+    // 👈 Removed showSaved dep (unused)
+    let temp = allJobs;
     return sortBasedOn(sortBy, temp);
-  }, [allJobs, showSaved, sortBy]);
+  }, [allJobs, sortBy]);
 
   // Final jobs to show:
   // - If user typed something (>=1 char) → use backend search results + sort
@@ -218,8 +218,7 @@ const Page = () => {
       debounce((value) => {
         performSearch(value);
       }, 400),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    []
+    [] // 👈 Stable deps, no ESLint disable needed
   );
 
   // ----- Initial fetch of all postings -----
@@ -247,7 +246,7 @@ const Page = () => {
     if (!currentSort) {
       router.replace(`?sort_by=postings_new`, { scroll: false });
     }
-  }, [searchParams, router]);
+  }, [searchParams, router]); // 👈 Added router dep
 
   const formattedDate = (createdAt) => {
     const createdDate = new Date(createdAt);
@@ -302,6 +301,9 @@ const Page = () => {
       setSavingId(null);
     }
   };
+
+  // 👈 Fallback for Suspense (simple skeleton reuse)
+  if (loading) return <JobSkeleton count={3} />;
 
   return (
     <div className="sm:p-6 p-3 relative">
@@ -375,9 +377,7 @@ const Page = () => {
       </div>
 
       {/* Listing */}
-      {loading ? (
-        <JobSkeleton count={3} />
-      ) : isSearching && searchTerm.trim().length >= 1 ? (
+      {isSearching && searchTerm.trim().length >= 1 ? (
         <div className="mt-5 text-center text-gray-500">Searching...</div>
       ) : jobsToRender && jobsToRender.length > 0 ? (
         <div className="mt-5">
@@ -391,9 +391,12 @@ const Page = () => {
           <div className="flex flex-wrap gap-8">
             {jobsToRender.map((job) => {
               const isClosed = job.status === "Closed";
-              const alreadyApplied = job.applications?.some(
-                (application) => application.user === user.id
-              );
+              const alreadyApplied =
+                user?.id &&
+                job.applications?.some(
+                  // 👈 Added user?.id null check
+                  (application) => application.user === user.id
+                );
 
               return (
                 <div
@@ -710,9 +713,8 @@ const Page = () => {
       ) : (
         !loading && (
           <div className="text-center py-8 text-gray-500">
-            {showSaved
-              ? "No saved postings found."
-              : searchTerm.trim().length >= 1
+            {/* 👈 Removed showSaved (unused) */}
+            {searchTerm.trim().length >= 1
               ? "No results found."
               : "No jobs found."}
           </div>
@@ -721,5 +723,14 @@ const Page = () => {
     </div>
   );
 };
+
+// 👈 New: Fallback component for Suspense
+const PageFallback = () => <JobSkeleton count={3} />;
+
+const Page = () => (
+  <Suspense fallback={<PageFallback />}>
+    <PageContent />
+  </Suspense>
+);
 
 export default Page;

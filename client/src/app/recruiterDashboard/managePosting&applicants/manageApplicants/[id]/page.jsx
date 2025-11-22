@@ -1,7 +1,7 @@
 "use client";
 import { Input } from "@/components/ui/input";
 import SearchTypingAnimation from "@/components/common/SearchTypingAnimation";
-import { useEffect, useState } from "react";
+import { useEffect, useState, Suspense, useCallback } from "react"; // 👈 Added Suspense, useCallback
 import { Button } from "@/components/ui/button";
 import {
   Filter,
@@ -34,7 +34,11 @@ import useChatStore from "@/store/recruiter/ChatStore";
 import useRecruiterAuthStore from "@/store/recruiter/recruiterauthStore";
 import useAuthStore from "@/store/authStore";
 
-export default function Page() {
+// 👈 Fallback for Suspense
+const PageFallback = () => <ApplicantSkeleton count={6} />;
+
+const PageContent = () => {
+  // 👈 Extracted for Suspense
   const [search, setSearch] = useState("");
   const [isMobile, setIsMobile] = useState(false);
   const { id } = useParams();
@@ -61,7 +65,7 @@ export default function Page() {
   const [isFiltered, setIsFiltered] = useState(false);
   const [filteredCount, setFilteredCount] = useState(0);
 
-  // ✅ Check for mobile screen size
+  // ✅ Check for mobile screen size - 👈 Client-only
   useEffect(() => {
     const mediaQuery = window.matchMedia("(max-width: 767px)");
     setIsMobile(mediaQuery.matches);
@@ -77,11 +81,22 @@ export default function Page() {
     setSortType(urlSortType);
   }, [searchParams]);
 
-  // ✅ Sync search input with ?name= param
+  // ✅ Sync search input with ?name= param - 👈 Update URL on change too
   useEffect(() => {
     const nameParam = searchParams.get("name") || "";
     setSearch(nameParam);
   }, [searchParams]);
+
+  // 👈 New: Update URL when search changes
+  useEffect(() => {
+    const newSearchParams = new URLSearchParams(searchParams.toString());
+    if (search) {
+      newSearchParams.set("name", search);
+    } else {
+      newSearchParams.delete("name");
+    }
+    router.replace(`?${newSearchParams.toString()}`, { scroll: false });
+  }, [search, searchParams, router]);
 
   // ✅ Update URL params when sortType changes
   useEffect(() => {
@@ -91,7 +106,7 @@ export default function Page() {
     } else {
       newSearchParams.delete("sort_by");
     }
-    router.replace(`?${newSearchParams.toString()}`);
+    router.replace(`?${newSearchParams.toString()}`, { scroll: false });
   }, [sortType, searchParams, router]);
 
   // ✅ Fetch applicants
@@ -122,11 +137,20 @@ export default function Page() {
     if (id) fetchApplicants();
   }, [id]);
 
+  // 👈 Search: Debounced API fetch (no client filter needed)
   useEffect(() => {
     const fetchSearchApplicants = async () => {
-      if (!id || search.trim().length === 0) return;
+      if (!id || search.trim().length === 0) {
+        // If no search, refetch all (or use cached)
+        const res = await API.get(
+          `/recruiter/managePosting/getallApplicants/${id}`
+        );
+        if (res.data.success) setApplicants(res.data.applicants);
+        return;
+      }
 
       try {
+        setActionLoading((prev) => ({ ...prev, search: true }));
         const res = await API.get(
           `/recruiter/managePosting/searchApplicants/${id}?query=${search}`
         );
@@ -135,10 +159,13 @@ export default function Page() {
         }
       } catch (error) {
         toast.error("Error searching applicants:", error);
+        setApplicants([]); // Clear on error
+      } finally {
+        setActionLoading((prev) => ({ ...prev, search: false }));
       }
     };
 
-    // 🕒 debounce to avoid firing on each keystroke instantly
+    // 🕒 debounce
     const delay = setTimeout(fetchSearchApplicants, 400);
     return () => clearTimeout(delay);
   }, [search, id]);
@@ -157,14 +184,14 @@ export default function Page() {
   }
 
   // ✅ Clear filters and sort
-  const handleClear = () => {
+  const handleClear = useCallback(() => {
     setSearch("");
     setSortType("recent");
     // If filters were implemented, reset them here
-  };
+  }, []);
 
   // ✅ Toggle selection mode
-  const toggleSelectionMode = () => {
+  const toggleSelectionMode = useCallback(() => {
     setIsSelectionMode((prev) => !prev);
     if (!isSelectionMode) {
       // Entering mode, reset selections
@@ -172,10 +199,10 @@ export default function Page() {
     } else {
       // Exiting mode, but don't reset selections if applying
     }
-  };
+  }, [isSelectionMode]);
 
   // ✅ Toggle individual applicant selection
-  const toggleApplicant = (applicantId) => {
+  const toggleApplicant = useCallback((applicantId) => {
     setSelectedApplicants((prev) => {
       const newSet = new Set(prev);
       if (newSet.has(applicantId)) {
@@ -185,158 +212,167 @@ export default function Page() {
       }
       return newSet;
     });
-  };
+  }, []);
 
   // ✅ Get selected count
   const selectedCount = selectedApplicants.size;
 
-  // ✅ Sorting logic
-  const sortedApplicants = [...applicants].sort((a, b) => {
-    if (sortType === "name-asc") {
-      return a.user?.name?.localeCompare(b.user?.name);
-    } else if (sortType === "name-desc") {
-      return b.user?.name?.localeCompare(a.user?.name);
-    } else if (sortType === "recent") {
-      return new Date(b.appliedAt) - new Date(a.appliedAt);
-    } else if (sortType === "oldest") {
-      return new Date(a.appliedAt) - new Date(b.appliedAt);
-    }
-    return 0;
-  });
+  // ✅ Sorting logic - 👈 Apply to full applicants (search is API-side)
+  const sortedApplicants = useMemo(() => {
+    return [...applicants].sort((a, b) => {
+      if (sortType === "name-asc") {
+        return a.user?.name?.localeCompare(b.user?.name);
+      } else if (sortType === "name-desc") {
+        return b.user?.name?.localeCompare(a.user?.name);
+      } else if (sortType === "recent") {
+        return new Date(b.appliedAt) - new Date(a.appliedAt);
+      } else if (sortType === "oldest") {
+        return new Date(a.appliedAt) - new Date(b.appliedAt);
+      }
+      return 0;
+    });
+  }, [applicants, sortType]);
 
-  const handleATSScores = async (applyToAll = false) => {
-    try {
+  const handleATSScores = useCallback(
+    async (applyToAll = false) => {
       if (!opporDet) {
+        // 👈 Guard
         toast.warning("Opportunity details not loaded");
         return;
       }
 
-      // ✅ Determine applicants
-      let applicantIds = [];
-      if (applyToAll) {
-        applicantIds = applicants.map((a) => a._id);
-      } else {
-        if (selectedCount === 0) {
-          toast.warning("Please select at least one applicant");
-          return;
-        }
-        applicantIds = Array.from(selectedApplicants);
-      }
-
-      // ✅ Step 1: Fetch resumes
-      setActionLoading((prev) => ({
-        ...prev,
-        ats: { loading: true, text: "Fetching resumes..." },
-      }));
-
-      const resp = await API.post(`/recruiter/ats/getResumes/${id}`, {
-        applicantIds,
-      });
-
-      if (!resp.data.success) {
-        toast.warning(resp.data.message || "Failed to fetch resumes");
-        return;
-      }
-
-      const rawUsers = resp.data.applicants;
-      if (!rawUsers || rawUsers.length === 0) {
-        toast.warning("No resumes found for selected applicants");
-        return;
-      }
-
-      // ✅ Step 2: Prepare job details
-      setActionLoading((prev) => ({
-        ...prev,
-        ats: { loading: true, text: "Scoring resumes..." },
-      }));
-
-      const isJob = opporDet.nop !== undefined;
-      const jobDetails = {
-        job_title: opporDet.role || "",
-        job_description: isJob
-          ? opporDet.description || ""
-          : opporDet.about || "",
-        requirements: isJob ? [opporDet.experience || ""] : [],
-        required_skills: opporDet.requiredSkills || [],
-        optional_skills: opporDet.optionalSkills || [],
-        required_education: "",
-        required_experience: isJob ? opporDet.experience || "" : "",
-      };
-
-      // ✅ Step 3: Prepare resumes
-      const applicantsPayload = rawUsers.map((a) => ({
-        id: a._id,
-        base64_data: a.resume?.data || "",
-        file_type: a.resume?.contentType === "application/pdf" ? "pdf" : "docx",
-      }));
-
-      const scoreResp = await API2.post("/score_resumes", {
-        job_details: jobDetails,
-        resumes: applicantsPayload,
-        opporType: resp.data.opporType,
-      });
-
-      if (!scoreResp.data.success) {
-        toast.error("Failed to score resumes");
-        return;
-      }
-
-      const scores = scoreResp.data.scores || [];
-
-      if (scores.length === 0) {
-        toast.warning("No scores returned from scoring engine");
-        return;
-      }
-
       try {
-        const saveResp = await API.post(`/recruiter/ats/saveScores/${id}`, {
-          scores: Object.keys(scores).map((uid) => ({
-            applicantId: uid,
-            total: scores[uid].score,
-          })),
+        // ✅ Determine applicants
+        let applicantIds = [];
+        if (applyToAll) {
+          applicantIds = applicants.map((a) => a._id);
+        } else {
+          if (selectedCount === 0) {
+            toast.warning("Please select at least one applicant");
+            return;
+          }
+          applicantIds = Array.from(selectedApplicants);
+        }
+
+        // ✅ Step 1: Fetch resumes
+        setActionLoading((prev) => ({
+          ...prev,
+          ats: { loading: true, text: "Fetching resumes..." },
+        }));
+
+        const resp = await API.post(`/recruiter/ats/getResumes/${id}`, {
+          applicantIds,
         });
 
-        toast.success("ATS scores saved successfully!");
-      } catch (saveErr) {
-        toast.error("Error saving ATS scores");
-        return;
-      }
+        if (!resp.data.success) {
+          toast.warning(resp.data.message || "Failed to fetch resumes");
+          return;
+        }
 
-      if (!applyToAll) {
-        setIsSelectionMode(false);
-        setSelectedApplicants(new Set());
-      }
-    } catch (err) {
-      toast.error(err.response?.data?.message || err.message);
-    } finally {
-      setActionLoading((prev) => ({
-        ...prev,
-        ats: { loading: false, text: "" },
-      }));
-    }
-  };
+        const rawUsers = resp.data.applicants;
+        if (!rawUsers || rawUsers.length === 0) {
+          toast.warning("No resumes found for selected applicants");
+          return;
+        }
 
-  const handleApplyToAll = () => {
+        // ✅ Step 2: Prepare job details
+        setActionLoading((prev) => ({
+          ...prev,
+          ats: { loading: true, text: "Scoring resumes..." },
+        }));
+
+        const isJob = opporDet.nop !== undefined;
+        const jobDetails = {
+          job_title: opporDet.role || "",
+          job_description: isJob
+            ? opporDet.description || ""
+            : opporDet.about || "",
+          requirements: isJob ? [opporDet.experience || ""] : [],
+          required_skills: opporDet.requiredSkills || [],
+          optional_skills: opporDet.optionalSkills || [],
+          required_education: "",
+          required_experience: isJob ? opporDet.experience || "" : "",
+        };
+
+        // ✅ Step 3: Prepare resumes
+        const applicantsPayload = rawUsers.map((a) => ({
+          id: a._id,
+          base64_data: a.resume?.data || "",
+          file_type:
+            a.resume?.contentType === "application/pdf" ? "pdf" : "docx",
+        }));
+
+        const scoreResp = await API2.post("/score_resumes", {
+          job_details: jobDetails,
+          resumes: applicantsPayload,
+          opporType: resp.data.opporType,
+        });
+
+        if (!scoreResp.data.success) {
+          toast.error("Failed to score resumes");
+          return;
+        }
+
+        const scores = scoreResp.data.scores || [];
+
+        if (scores.length === 0) {
+          toast.warning("No scores returned from scoring engine");
+          return;
+        }
+
+        try {
+          const saveResp = await API.post(`/recruiter/ats/saveScores/${id}`, {
+            scores: Object.keys(scores).map((uid) => ({
+              applicantId: uid,
+              total: scores[uid].score,
+            })),
+          });
+
+          toast.success("ATS scores saved successfully!");
+          // 👈 Refresh applicants to show new scores
+          const refreshRes = await API.get(
+            `/recruiter/managePosting/getallApplicants/${id}`
+          );
+          if (refreshRes.data.success)
+            setApplicants(refreshRes.data.applicants);
+        } catch (saveErr) {
+          toast.error("Error saving ATS scores");
+          return;
+        }
+
+        if (!applyToAll) {
+          setIsSelectionMode(false);
+          setSelectedApplicants(new Set());
+        }
+      } catch (err) {
+        toast.error(err.response?.data?.message || err.message);
+      } finally {
+        setActionLoading((prev) => ({
+          ...prev,
+          ats: { loading: false, text: "" },
+        }));
+      }
+    },
+    [opporDet, applicants, id, selectedCount, selectedApplicants]
+  );
+
+  const handleApplyToAll = useCallback(() => {
     handleATSScores(true);
-  };
+  }, [handleATSScores]);
 
-  const handleApplyToSelected = () => {
+  const handleApplyToSelected = useCallback(() => {
     if (isSelectionMode) {
       handleATSScores(false);
     } else {
       toggleSelectionMode();
     }
-  };
+  }, [isSelectionMode, handleATSScores, toggleSelectionMode]);
 
-  console.log(applicants);
-
-  const handleCancelSelection = () => {
+  const handleCancelSelection = useCallback(() => {
     setIsSelectionMode(false);
     setSelectedApplicants(new Set());
-  };
+  }, []);
 
-  console.log(sortedApplicants);
-  console.log(applicants);
   return (
     <div className="md:p-6 p-4 space-y-6">
       {filterModal && (
@@ -358,8 +394,9 @@ export default function Page() {
             onChange={(e) => setSearch(e.target.value)}
             placeholder=""
             className="w-full p-3 border border-gray-300 text-base"
+            disabled={actionLoading.search} // 👈 Disable during search
           />
-          {search === "" && (
+          {search === "" && !actionLoading.search && (
             <span className="absolute text-base left-4 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none">
               <SearchTypingAnimation
                 words={[
@@ -462,7 +499,7 @@ export default function Page() {
           <Button
             onClick={() => setFilterModal(true)}
             variant="outline"
-            disabled
+            disabled // 👈 Enable when implementing
             className="gap-2 cursor-pointer"
           >
             <Filter size={16} />
@@ -477,21 +514,23 @@ export default function Page() {
         <div className="flex flex-wrap items-center mt-2">
           <span className="">Required Skills:</span>
           <span className="text-sm ml-2">
-            {opporDet?.requiredSkills.join(", ")}
+            {opporDet?.requiredSkills?.join(", ") || "N/A"}
           </span>
         </div>
 
         <div className="flex flex-wrap items-center">
           <span className="">Optional Skills:</span>
           <span className="text-sm ml-2">
-            {opporDet?.optionalSkills.join(", ")}
+            {opporDet?.optionalSkills?.join(", ") || "N/A"}
           </span>
         </div>
 
         <Button
           onClick={() =>
             router.push(
-              `/recruiterDashboard/managePosting&applicants/${opporDet._id}`
+              `/recruiterDashboard/managePosting&applicants/${
+                opporDet?._id || id
+              }` // 👈 Guard
             )
           }
           className="text-black mt-4 border-zinc-300 border-[1.6px] bg-gray-200 hover:bg-gray-300"
@@ -564,13 +603,10 @@ export default function Page() {
             </h1>
             <div className="flex flex-wrap mt-3 p-2 gap-6">
               {sortedApplicants.length > 0 ? (
-                sortedApplicants
-                  .filter((appl) =>
-                    appl.user?.name
-                      ?.toLowerCase()
-                      .includes(search.toLowerCase().trim())
-                  )
-                  .map((appl) => (
+                sortedApplicants.map(
+                  (
+                    appl // 👈 Removed redundant client filter (API handles search)
+                  ) => (
                     <div
                       key={appl._id}
                       // onClick={() =>
@@ -735,7 +771,8 @@ export default function Page() {
                         </h1>
                       </div>
                     </div>
-                  ))
+                  )
+                )
               ) : (
                 <p className="text-center text-gray-500 w-full py-8">
                   No applicants found.
@@ -746,5 +783,13 @@ export default function Page() {
         </div>
       )}
     </div>
+  );
+};
+
+export default function Page() {
+  return (
+    <Suspense fallback={<PageFallback />}>
+      <PageContent />
+    </Suspense>
   );
 }
