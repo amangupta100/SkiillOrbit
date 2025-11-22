@@ -18,10 +18,13 @@ const generateOTP = () => {
 let transport = nodemailer.createTransport({
   host: "smtp.gmail.com",
   port: 587,
-  secure: process.env.NODE_ENV === "production",
+  secure: false,
   auth: {
     user: "skillorbit01@gmail.com",
     pass: "kyst ovep ombh toph",
+  },
+  tls: {
+    rejectUnauthorized: false,
   },
 });
 
