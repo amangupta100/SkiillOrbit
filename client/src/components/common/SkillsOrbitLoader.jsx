@@ -27,7 +27,7 @@ const Loader = () => {
           <span>SkillsOrbit</span>
         </div>
         <div className="text">
-          <span>]SkillsOrbit</span>
+          <span>SkillsOrbit</span>
         </div>
         <div className="text">
           <span>SkillsOrbit</span>

@@ -95,13 +95,13 @@ const OTP_Verf = `<!DOCTYPE html>
       <!-- Header -->
       <div class="header">
         <div class="logo">
-          <img src="https://res.cloudinary.com/ddad6pdhx/image/upload/v1758799527/logo_qzuuth.png" alt="SkillOrbit Logo">
+          <img src="https://res.cloudinary.com/ddad6pdhx/image/upload/v1758799527/logo_qzuuth.png" alt="SkillsOrbit Logo">
         </div>
       </div>
 
       <!-- Content -->
       <div class="content">
-        <div class="greeting">Hello {{ .name }},</div>
+        <div class="greeting">Hello,</div>
         <p>Your OTP code for authentication is:</p>
         
         <div class="otp-box">{{ .Token }}</div>
@@ -110,12 +110,12 @@ const OTP_Verf = `<!DOCTYPE html>
         This code will expire in <strong>10 minutes</strong>.</p>
 
         <p>If you didn't request this code, please ignore this email.</p>
-        <p>Best regards,<br>SkillOrbit Team</p>
+        <p>Best regards,<br>SkillsOrbit Team</p>
       </div>
 
       <!-- Footer -->
       <div class="footer">
-        © ${new Date().getFullYear()} SkillOrbit. All rights reserved.
+        © ${new Date().getFullYear()} SkillsOrbit. All rights reserved.
       </div>
     </div>
   </center>

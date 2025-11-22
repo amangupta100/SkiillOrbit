@@ -32,9 +32,7 @@ API.interceptors.response.use(
         }
 
         return API(originalRequest);
-      } catch (refreshErr) {
-        console.error("Refresh failed:", refreshErr);
-      }
+      } catch (refreshErr) {}
     }
 
     return Promise.reject(error);

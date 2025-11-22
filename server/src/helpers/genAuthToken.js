@@ -8,6 +8,7 @@ const genAccessToken = (user, res) => {
       name: user.name,
       desiredRole: user.desiredRole,
       domain: user.desiredDomain,
+      email: user.email,
     },
     process.env.ACCESS_SECRET_KEY,
     { expiresIn: "15m" } // shorter lifespan
@@ -33,6 +34,7 @@ const genRefreshToken = (user, res) => {
       name: user.name,
       desiredRole: user.desiredRole,
       domain: user.desiredDomain,
+      email: user.email,
     },
     process.env.REFRESH_SECRET_KEY,
     { expiresIn: refreshTokenExpiry } // longer lifespan

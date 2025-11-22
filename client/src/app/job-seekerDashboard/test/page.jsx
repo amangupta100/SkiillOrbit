@@ -23,6 +23,7 @@ import Image from "next/image";
 import search from "@/assests/undraw_web-search_9qqc.svg";
 import useAuthStore from "@/store/authStore";
 import ButtonLoader from "@/utils/Loader";
+import { useRouter } from "next/navigation";
 
 const page = () => {
   const [skills, setSkills] = useState([]);
@@ -34,6 +35,7 @@ const page = () => {
   const [open, setOpen] = useState(false);
   const { user } = useAuthStore();
   const [resLoading, setrespLoading] = useState(false);
+  const router = useRouter();
 
   useEffect(() => {
     const fetchUserData = async () => {
@@ -95,8 +97,14 @@ const page = () => {
       );
     if (selectedSkills.length > 1)
       return toast.warning(
-        "Can't start test with more than 1 skills at a time, Start with only 1 skills"
+        "Can't start test with more than 1 skills at a time, Start with only 1 skill"
       );
+
+    if (questionCount > 10) {
+      return toast.warning(
+        "Can't start test with more than 10 questions at a time."
+      );
+    }
 
     try {
       setrespLoading(true);
@@ -113,7 +121,22 @@ const page = () => {
       if (!succ)
         return toast.error("Something went wrong, Please try again later!");
       else {
-        window.location.href = "/job-seekerDashboard/test/verifyIdentity";
+        const questions = await API.get(
+          `/job-seeker/tests/getTestQtn?skills=${selectedSkills}&questionCount=${questionCount}`
+        );
+        const questionsR = questions.data.questions;
+        sessionStorage.setItem("questions", JSON.stringify(questionsR));
+        const savedRes = await API.post("/job-seeker/tests/genTest", {
+          questions: JSON.stringify(questionsR),
+          selectedSkills,
+          questionCount,
+        });
+
+        if (savedRes.data?.success) {
+          router.push("/job-seekerDashboard/test/testEnvironment/");
+        } else {
+          toast.warning(savedRes.data?.message || "Test Saved Failed");
+        }
       }
     } catch (err) {
       toast.warning(err.message);

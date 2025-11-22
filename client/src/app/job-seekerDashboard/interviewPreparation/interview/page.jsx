@@ -54,7 +54,7 @@ export default function InterviewPrep() {
         const role = getDetails?.role || "candidate";
 
         // Base prompt for Jia, the Interview Coach
-        let prompt = `You are Jia, SkillOrbit's Virtual Interview Coach.
+        let prompt = `You are Jia, SkillsOrbit's Virtual Interview Coach.
 Your job is to conduct mock interviews in a friendly, coaching tone.
 You should:
 1. Ask relevant, clear, and conversational interview questions.
@@ -196,7 +196,7 @@ Then, continue the interview by asking the next general question relevant to the
               ? ` with skills ${skillsText}`
               : "";
 
-          const welcomeText = `Hey ${getname}, I am SkillOrbit's Virtual Interviewer named Jia. I am here to take your ${interviewTypeText} for the role of ${roleText}${skillsPart}. Let's get started by introducing yourself briefly.`;
+          const welcomeText = `Hey ${getname}, I am SkillsOrbit's Virtual Interviewer named Jia. I am here to take your ${interviewTypeText} for the role of ${roleText}${skillsPart}. Let's get started by introducing yourself briefly.`;
 
           setMessages((prev) => [...prev, { text: welcomeText, sender: "ai" }]);
           setPendingSpeech(welcomeText);

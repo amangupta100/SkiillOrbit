@@ -36,7 +36,7 @@ export default function LandingPage() {
         <div className="w-[85%] ">
           <p className="text-base sm:text-lg text-gray-500 mt-5">
             Prove your skills, and apply with confidence. Get faster responses
-            from recruiters — no guesswork, just skill-first hiring.
+            from recruiters — no guesswork, just skill-based hiring.
           </p>
         </div>
 

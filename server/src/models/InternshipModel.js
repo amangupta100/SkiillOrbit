@@ -130,6 +130,11 @@ const internshipSchema = new mongoose.Schema(
         ref: "Application",
       },
     ],
+    closureDetails: {
+      reason: { type: String, default: "" },
+      closedBy: { type: mongoose.Schema.Types.ObjectId, ref: "Recruiter" },
+      closedAt: { type: Date },
+    },
   },
   { timestamps: true }
 );

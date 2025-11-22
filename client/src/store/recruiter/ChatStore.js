@@ -89,7 +89,6 @@ const useChatStore = create(
       // Fix: Normalize IDs to strings for comparison
       updateMessageStatus: (chatId, messageId, status) => {
         set((state) => {
-          console.log(chatId, messageId, status);
           const chatMessages = state.messages[chatId];
           if (!chatMessages) return state;
 
@@ -101,23 +100,12 @@ const useChatStore = create(
               ? String(msg.clientMessageId)
               : null;
 
-            console.log(
-              normalizedMsgId,
-              normalizedTargetId,
-              normalizedClientId
-            );
-
             const matches =
               normalizedMsgId === normalizedTargetId ||
               normalizedClientId === normalizedTargetId ||
               normalizedClientId === normalizedMsgId;
 
             if (matches) {
-              console.log("✅ Status updated:", {
-                from: msg.status,
-                to: status,
-                messageId: normalizedMsgId,
-              });
               return { ...msg, status };
             }
             return msg;
@@ -220,7 +208,6 @@ const useChatStore = create(
             "/common/conversation/allchatswithmessages"
           );
           const { success, chats: chatData } = res.data;
-          console.log(res);
 
           if (success && Array.isArray(chatData)) {
             const messagesObj = {}; // Only build messages
@@ -241,11 +228,6 @@ const useChatStore = create(
                 );
               }
             }
-
-            // ❌ REMOVE: No set({ chats: newChats }) – preserve full chats from fetchChatList
-            console.log(
-              "✅ Loaded messages for chats without overwriting chats list"
-            );
           }
         } catch (err) {
           toast.error("Failed to fetch chats with messages: " + err.message);
@@ -281,10 +263,9 @@ const useChatStore = create(
             );
 
             set({ chats: sortedChats });
-            console.log(sortedChats);
           }
         } catch (err) {
-          console.error("fetchChatList error:", err);
+          toast.error("fetchChatList error:", err);
         } finally {
           if (showLoader) set({ loading: false });
         }

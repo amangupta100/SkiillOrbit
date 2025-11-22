@@ -12,6 +12,11 @@ const jobSchema = new mongoose.Schema(
       ref: "Recruiter",
       required: true,
     },
+    closureDetails: {
+      reason: { type: String, default: "" },
+      closedBy: { type: mongoose.Schema.Types.ObjectId, ref: "Recruiter" },
+      closedAt: { type: Date },
+    },
     domain: {
       type: String,
       required: true,

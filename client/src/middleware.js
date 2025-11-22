@@ -4,9 +4,11 @@ import { jwtVerify } from "jose";
 export async function middleware(request) {
   const { pathname } = request.nextUrl;
   const cookies = request.cookies;
+
   const accessToken = cookies.get("accessToken")?.value;
   const refreshToken = cookies.get("refreshToken")?.value;
   const isAuthenticated = !!accessToken || !!refreshToken;
+
   const profileSetupPending = cookies.get("profileSetupPending")?.value;
 
   // Test-specific cookies
@@ -14,6 +16,18 @@ export async function middleware(request) {
   const tt = cookies.get("tt")?.value;
   const isInstructionsShown = cookies.get("isInstructionsShown")?.value;
   const int_sessionId = cookies.get("sessionID")?.value;
+
+  // Redirect interview routes if no refresh
+  if (!refreshToken && pathname.startsWith("/interviews")) {
+    return NextResponse.redirect(new URL("/login/job-seeker", request.url));
+  }
+
+  if (
+    pathname.startsWith("/register/job-seeker/profileSetup") &&
+    !refreshToken
+  ) {
+    return NextResponse.redirect(new URL("/login/job-seeker", request.url));
+  }
 
   if (
     pathname === "/job-seekerDashboard/interviewPreparation/interview" &&
@@ -26,9 +40,9 @@ export async function middleware(request) {
 
   let response = NextResponse.next();
   let role = null;
-  let shouldRefresh = false;
+  let email = null;
 
-  // 1. Protect /test/submit and /test/verifyIdentity
+  // --- TEST route locks ---
   if (
     pathname.startsWith("/job-seekerDashboard/test/verifyIdentity") ||
     pathname.startsWith("/job-seekerDashboard/test/testEnvironment")
@@ -57,7 +71,9 @@ export async function middleware(request) {
     }
   }
 
-  //role get logic
+  // ------------------------------
+  // 1️⃣ Extract ROLE + EMAIL from JWT
+  // ------------------------------
   if (accessToken && refreshToken) {
     try {
       const { payload } = await jwtVerify(
@@ -65,8 +81,8 @@ export async function middleware(request) {
         new TextEncoder().encode(process.env.ACCESS_SECRET_KEY)
       );
       role = payload.role;
+      email = payload.email; // ⬅ GET EMAIL FROM JWT
     } catch (err) {
-      // ❌ Access token invalid or expired
       return new NextResponse(JSON.stringify({ error: "Unauthorized" }), {
         status: 401,
         headers: { "Content-Type": "application/json" },
@@ -74,7 +90,40 @@ export async function middleware(request) {
     }
   }
 
-  // 3. Block unauthenticated access to protected routes
+  // ------------------------------
+  // 2️⃣ PROTECT /adminDashboard HERE
+  // ------------------------------
+  // if (pathname.startsWith("/adminDashboard")) {
+  //   const ADMIN_EMAIL = process.env.ADMIN_EMAIL;
+  //   const referer = `${
+  //     role === "job-seeker" ? "/job-seekerDashboard" : "/recruiterDashboard"
+  //   }`;
+
+  //   // BLOCK non-admins
+  //   if (!accessToken || !refreshToken) {
+  //     const loginUrl = new URL("/login/job-seeker", request.url);
+  //     loginUrl.searchParams.set(
+  //       "returnTo",
+  //       encodeURIComponent(pathname + request.nextUrl.search)
+  //     );
+  //     return NextResponse.redirect(loginUrl);
+  //   }
+
+  //   // BLOCK wrong role
+  //   if (role !== "admin") {
+  //     return NextResponse.redirect(new URL(referer, request.url));
+  //   }
+
+  //   // BLOCK wrong email
+  //   if (email !== ADMIN_EMAIL) {
+  //     return NextResponse.redirect(new URL(referer, request.url));
+  //   }
+  // }
+
+  // --------------------------------------------------------------
+  // ⬇ (existing logic unchanged below this point)
+  // --------------------------------------------------------------
+
   if (!refreshToken && !accessToken) {
     if (pathname.startsWith("/job-seekerDashboard")) {
       return NextResponse.redirect(new URL("/login/job-seeker", request.url));
@@ -88,9 +137,7 @@ export async function middleware(request) {
     return response;
   }
 
-  // 4. ROLE-BASED ACCESS ENFORCEMENT - NO CROSSING THE STREAMS
   if (role) {
-    // BLOCK job-seekers from recruiter routes
     if (
       role === "job-seeker" &&
       (pathname.startsWith("/recruiterDashboard") ||
@@ -102,7 +149,6 @@ export async function middleware(request) {
       );
     }
 
-    // BLOCK recruiters from job-seeker routes
     if (
       role === "recruiter" &&
       (pathname.startsWith("/job-seekerDashboard") ||
@@ -113,14 +159,9 @@ export async function middleware(request) {
     }
   }
 
-  // 5. Profile setup flow - COMPLETE THIS OR DIE TRYING
   if (profileSetupPending && role) {
     const profileSetupPath = `/register/job-seeker/profileSetup`;
-
-    // Allowed paths during profile setup
     const allowedPaths = [profileSetupPath, "/api/upload"];
-
-    // If not on allowed path, FORCE redirect to profile setup
     if (!allowedPaths.some((path) => pathname.startsWith(path))) {
       return NextResponse.redirect(new URL(profileSetupPath, request.url));
     }
@@ -138,7 +179,6 @@ export async function middleware(request) {
     return response;
   }
 
-  // 6. Redirect authenticated users away from auth pages
   if (
     refreshToken &&
     (pathname.startsWith("/login") || pathname.startsWith("/register"))
@@ -150,6 +190,7 @@ export async function middleware(request) {
       )
     );
   }
+
   return response;
 }
 
@@ -157,11 +198,13 @@ export const config = {
   matcher: [
     "/job-seekerDashboard/:path*",
     "/recruiterDashboard/:path*",
+    "/adminDashboard/:path*", // ⬅ ADD THIS
     "/login/:path*",
     "/register/:path*",
     "/test/testEnvironment",
     "/test/submit",
     "/test/verifyIdentity",
-    "/test/:path*", // Added this to catch all test routes
+    "/test/:path*",
+    "/interviews/:path*",
   ],
 };

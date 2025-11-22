@@ -1,7 +1,7 @@
 "use client";
 
 import API from "@/utils/interceptor";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import React, { useEffect, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/Checkbox";
@@ -16,6 +16,8 @@ const Page = () => {
   const [tests, setTests] = useState([]);
   const [selectedSkills, setSelectedSkills] = useState([]);
   const [allSkillOpp, setallSkillOpp] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const router = useRouter();
 
   useEffect(() => {
     const fetchData = async () => {
@@ -42,13 +44,17 @@ const Page = () => {
 
   const handleSubmit = async () => {
     try {
+      setLoading(true);
       const resp = await API.post(`/job-seeker/opportunity/apply/${id}`);
       const { success: succ, message } = resp.data;
       if (succ) {
         toast.success(message);
+        router.back();
       } else toast.error(message);
     } catch (err) {
       toast.error(err.message);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -160,7 +166,13 @@ const Page = () => {
       </div>
 
       {/* Submit Button */}
-      <OpportunityFooter nextBtn="Apply" onApply={handleSubmit} />
+      <OpportunityFooter
+        nextBtn="Apply"
+        loading={loading}
+        onApply={handleSubmit}
+        loadingTxt="Applying..."
+        disabled={loading}
+      />
     </div>
   );
 };

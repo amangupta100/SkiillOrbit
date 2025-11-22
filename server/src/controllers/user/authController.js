@@ -5,6 +5,8 @@ const {
   genRefreshToken,
 } = require("../../helpers/genAuthToken");
 const UserModel = require("../../models/UserModel");
+const { sendPasswordChangedMail } = require("../common/SendOtpContr");
+const RecruiterModel = require("../../models/RecruiterModel");
 
 const register = async (req, res) => {
   let { fullname: name, email, password } = req.body;
@@ -124,7 +126,8 @@ const login = async (req, res) => {
 
 const logout = async (req, res) => {
   try {
-    const user = await userModel.findById(req.user.id);
+    const authId = req.admin?.id || req.user?.id;
+    const user = await userModel.findById(authId);
     if (user) {
       user.sessionToken = null;
       user.lastLogout = new Date();
@@ -268,6 +271,100 @@ const uploadDomainData = async (req, res) => {
   }
 };
 
+const checkEmailExist = async (req, res) => {
+  try {
+    const { email, role } = req.body;
+
+    if (!email || email.trim() === "") {
+      return res.status(400).json({
+        success: false,
+        message: "Email is required",
+      });
+    }
+
+    if (!role) {
+      return res.status(400).json({
+        success: false,
+        message: "Role is required",
+      });
+    }
+
+    let exists = null;
+
+    // 🔍 SWITCH BASED ON ROLE
+    if (role === "job-seeker") {
+      exists = await UserModel.findOne({ email: email.trim() });
+    } else {
+      exists = await RecruiterModel.findOne({ email: email.trim() });
+    }
+
+    if (exists) {
+      return res.status(200).json({
+        success: true,
+        exists: true,
+        message: "Email exists in database",
+      });
+    }
+
+    return res.status(200).json({
+      success: false,
+      exists: false,
+      message: "Email not found",
+    });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: "Internal server error",
+    });
+  }
+};
+
+const resetPassword = async (req, res) => {
+  try {
+    const { email, newPassword } = req.body;
+
+    if (!email || !newPassword) {
+      return res.status(400).json({
+        success: false,
+        message: "Email and new password are required",
+      });
+    }
+
+    // Find user
+    const user = await userModel.findOne({ email: email.trim() });
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found",
+      });
+    }
+
+    // Hash new password
+    const salt = await bcrypt.genSalt(10);
+    const hashedPass = await bcrypt.hash(newPassword, salt);
+
+    user.password = hashedPass;
+
+    // Clear any logged in sessions
+    user.sessionToken = null;
+
+    await user.save();
+
+    // ✉ Send success mail
+    sendPasswordChangedMail(user.email, user.name);
+
+    return res.status(200).json({
+      success: true,
+      message: "Password updated successfully",
+    });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: "Server error resetting password",
+    });
+  }
+};
+
 module.exports = {
   register,
   login,
@@ -275,4 +372,6 @@ module.exports = {
   profileSetupEnd,
   clearAccRefCook,
   uploadDomainData,
+  checkEmailExist,
+  resetPassword,
 };

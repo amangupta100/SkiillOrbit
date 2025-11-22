@@ -2,6 +2,8 @@ const { connection } = require("mongoose");
 const UserModel = require("../../models/UserModel");
 const TestModel = require("../../models/TestModel");
 const jwt = require("jsonwebtoken");
+const Question = require("../../models/QuestionModel");
+const { testEvalQueue } = require("../../utils/testEvalQueue");
 
 const getAllTestScores = async (req, res) => {
   try {
@@ -73,10 +75,8 @@ const getSkillsByUserDesiredRole = async (req, res) => {
 
 const genTest = async (req, res) => {
   try {
-    const { skills, questions, questionCount } = req.body; // 👈 get from body instead of req.testDet
+    const { questions, selectedSkills: skills, questionCount } = req.body; // 👈 get from body instead of req.testDet
     const { id: userId } = req.user;
-
-    console.log(questions.length);
 
     if (!skills || !userId) {
       return res.status(400).json({
@@ -93,9 +93,11 @@ const genTest = async (req, res) => {
     const embeddedQuestions = parsedQuestions.map((q) => ({
       title: q.title,
       type: q.type || "code",
-      codeSnippet: q.codeSnippet || "",
+      codeSnippet: q.starterCode || "",
       description: q.description || "",
       difficulty: q.difficulty || "medium",
+      topics: q.topicsCovered,
+      sgenAnwer: q.solutionCode,
     }));
 
     const durationMinutes = parseInt(questionCount) * 3;
@@ -148,133 +150,46 @@ const genTest = async (req, res) => {
 
 const testSubmit = async (req, res) => {
   try {
-    const { uanswer, canswer, flags } = req.body;
-    const { t_id: testId } = req.cookies;
-    const { id } = req.user;
+    const { uanswer } = req.body;
+    const { t_id } = req.cookies;
 
-    // 🧩 Step 1: Validate test ID
-    if (!testId) {
+    if (!t_id)
       return res.status(400).json({
         success: false,
-        message: "Missing test ID cookie.",
+        message: "Missing test token",
       });
-    }
 
-    let decoded;
-    try {
-      decoded = jwt.verify(testId, process.env.TEST_SECRET_KEY);
-    } catch (err) {
-      return res.status(401).json({
-        success: false,
-        message: "Invalid or expired test token.",
-      });
-    }
+    const decoded = jwt.verify(t_id, process.env.TEST_SECRET_KEY);
 
-    // 🧩 Step 2: Fetch test
     const test = await TestModel.findById(decoded.test_id);
-    if (!test) {
+    if (!test)
       return res.status(404).json({
         success: false,
-        message: "Test not found.",
+        message: "Test not found",
       });
-    }
 
-    // 🛡 Step 3: Prevent duplicate submissions
-    if (test.testCompleted) {
-      return res.status(200).json({
-        success: true,
-        message: "Test already submitted.",
-        correctCount: test.correctCount,
-        incorrectCount: test.incorrectCount,
-        scorePercent: test.scorePercent,
-      });
-    }
-
-    // 🚨 Step 4: Handle suspicious flags
-    if (flags && flags.length) {
-      test.SuspiciousFlags = Array.isArray(flags)
-        ? flags
-        : [String(flags) || "Auto submission due to suspicious activity"];
-      test.submittedAt = new Date();
-      test.testCompleted = false;
-      await test.save();
-
-      clearTestCookies(res, test.totalQuestions);
-
-      return res.json({
-        success: true,
-        message: "Flagged test saved successfully.",
-        flags: test.SuspiciousFlags,
-      });
-    }
-
-    // 👤 Step 5: Validate user
-    const user = await UserModel.findById(id);
-    if (!user) {
-      return res.status(404).json({
-        success: false,
-        message: "User not found.",
-      });
-    }
-
-    // 🧮 Step 6: Evaluate answers
-    if (!Array.isArray(uanswer) || !Array.isArray(canswer)) {
-      return res.status(400).json({
-        success: false,
-        message: "Invalid answers format.",
-      });
-    }
-
-    let correctCount = 0;
-    let incorrectCount = 0;
-
-    uanswer.forEach((ans, idx) => {
-      if (canswer[idx] && ans.code?.trim() === canswer[idx].code?.trim()) {
-        correctCount++;
-      } else {
-        incorrectCount++;
+    // Enqueue job
+    await testEvalQueue.add(
+      "evaluateTest",
+      { testId: test._id, uanswer },
+      {
+        attempts: 3,
+        backoff: { type: "exponential", delay: 3000 },
       }
-    });
-
-    const scorePercent = Math.round(
-      (correctCount / (test.totalQuestions || 1)) * 100
     );
 
-    // 💾 Step 7: Save results
-    test.uanswer = uanswer;
-    test.canswer = canswer;
-    test.correctCount = correctCount;
-    test.incorrectCount = incorrectCount;
-    test.scorePercent = scorePercent;
-    test.testCompleted = true;
-    test.submittedAt = new Date();
-
-    await test.save();
-
-    // ✅ Optional: Update user’s verified skills if high score
-    if (scorePercent >= 70 && Array.isArray(test.skills)) {
-      const newSkills = test.skills.filter(
-        (s) => !user.verifiedSkills.includes(s)
-      );
-      if (newSkills.length > 0) {
-        user.verifiedSkills.push(...newSkills);
-        await user.save();
-      }
-    }
-
-    // 🍪 Clear test cookies
-    clearTestCookies(res, test.totalQuestions);
+    res.clearCookie("t_id");
 
     return res.json({
       success: true,
-      message: "Test submitted successfully.",
-      correctCount,
-      incorrectCount,
-      scorePercent,
+      message: "Test submitted. Evaluation running in background.",
     });
   } catch (err) {
-    console.error("❌ Error submitting test:", err);
-    res.status(500).json({ error: "Internal server error." });
+    console.error("Submit test error:", err);
+    return res.status(500).json({
+      success: false,
+      message: "Internal Server Error",
+    });
   }
 };
 
@@ -317,10 +232,58 @@ const getaTestDet = async (req, res) => {
   }
 };
 
+// 🎯 Get Random Questions by Skill(s)
+const getRandomQuestions = async (req, res) => {
+  try {
+    let { skills, questionCount } = req.query;
+
+    if (!skills || !questionCount) {
+      return res.status(400).json({
+        success: false,
+        message: "skills and questionCount are required",
+      });
+    }
+
+    // Convert comma-separated → array
+    const skillsArray = Array.isArray(skills) ? skills : skills.split(",");
+
+    questionCount = Number(questionCount);
+
+    if (isNaN(questionCount) || questionCount < 1) {
+      return res.status(400).json({
+        success: false,
+        message: "questionCount must be a valid number",
+      });
+    }
+
+    // 🎯 Random Sampling Query
+    const randomQuestions = await Question.aggregate([
+      { $match: { skills: { $in: skillsArray } } },
+
+      // Shuffle & pick random X docs
+      { $sample: { size: questionCount } },
+    ]);
+
+    return res.status(200).json({
+      success: true,
+      count: randomQuestions.length,
+      questions: randomQuestions,
+    });
+  } catch (err) {
+    console.error("Random question error:", err);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to fetch random questions",
+      error: err.message,
+    });
+  }
+};
+
 module.exports = {
   getAllTestScores,
   getSkillsByUserDesiredRole,
   genTest,
   testSubmit,
   getaTestDet,
+  getRandomQuestions,
 };

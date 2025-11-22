@@ -1,12 +1,10 @@
-// email_template/resultTemplate.js
-
-const resultTemplate = (candidateName, score, status) => `
+const testResultReadyTemplate = (userName, skillName) => `
 <!DOCTYPE html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width" />
-    <title>Test Result</title>
+    <title>Your Test Result is Ready</title>
     <style>
       body {
         font-family: 'Segoe UI', sans-serif;
@@ -23,26 +21,20 @@ const resultTemplate = (candidateName, score, status) => `
         box-shadow: 0 2px 8px rgba(0,0,0,0.05);
       }
       .header {
-        background: #111827;
-        color: white;
-        padding: 24px;
+        background: #ffffff;
         text-align: center;
+        padding: 32px;
       }
       .header img {
-        max-width: 140px;
-        margin-bottom: 16px;
+        max-width: 160px;
       }
       .content {
         padding: 32px;
         color: #333;
       }
-      .status {
-        font-weight: bold;
-        color: ${status === "Passed" ? "#16a34a" : "#dc2626"};
-      }
       .button {
         display: inline-block;
-        background: #2A956B;
+        background: #111827;
         color: white;
         text-decoration: none;
         padding: 12px 24px;
@@ -57,27 +49,50 @@ const resultTemplate = (candidateName, score, status) => `
       }
     </style>
   </head>
+
   <body>
     <div class="container">
+      <!-- HEADER SECTION -->
       <div class="header">
-        <img src="https://res.cloudinary.com/ddad6pdhx/image/upload/v1758799527/logo_qzuuth.png" alt="SkillOrbit Logo" />
-        <h1>Your Test Result is Ready 🎉</h1>
+        <img src="https://res.cloudinary.com/ddad6pdhx/image/upload/v1758799527/logo_qzuuth.png" alt="SkillsOrbit Logo" />
       </div>
+
+      <!-- CONTENT SECTION -->
       <div class="content">
-        <p>Hi <strong>${candidateName}</strong>,</p>
-        <p>Your skill test evaluation has been completed successfully.</p>
-        <p><b>Score:</b> ${score}</p>
-        <p><b>Status:</b> <span class="status">${status}</span></p>
-        <p>You can now login to your dashboard to view the full report and detailed feedback.</p>
-        <a class="button" href="https://skillorbit.com/dashboard/user">View Result</a>
+        <p>Hi <strong>${userName}</strong>,</p>
+
+        <p>
+          Your test results for the skill <strong>${skillName}</strong> is now ready! 🚀
+        </p>
+
+        <p>
+          You can now view your performance, strengths, improvement areas, and detailed code evaluation inside your dashboard.
+        </p>
+
+        <ul>
+          <li>📊 View score breakdown</li>
+          <li>🐞 See debugging feedback</li>
+          <li>💡 Learn from mistake highlights</li>
+          <li>🏆 Check if the skill got verified</li>
+        </ul>
+
+        <a class="button" href="https://skillsorbit.in/job-seekerDashboard/tests">
+          View Test Result
+        </a>
+
+        <p style="margin-top: 24px;">
+          Keep learning, improving, and unlocking more opportunities at 
+          <strong>SkillsOrbit</strong>.
+        </p>
       </div>
+
+      <!-- FOOTER SECTION -->
       <div class="footer">
-        SkillOrbit © ${new Date().getFullYear()} <br />
-        You're receiving this email because you took a test on SkillOrbit.
+        SkillsOrbit Inc. — Smarter Careers. Stronger Skills.
       </div>
     </div>
   </body>
 </html>
 `;
 
-module.exports = { resultTemplate };
+module.exports = { testResultReadyTemplate };

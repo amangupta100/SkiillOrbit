@@ -6,7 +6,8 @@ const mongoose = require("mongoose");
 const User = require("../../models/UserModel");
 const {
   applicationStatusUpdate,
-} = require("../../controllers/recruiter/sendMailContr");
+  sendShortlistEmail,
+} = require("./sendMailContr");
 
 const createJobPosting = async (req, res) => {
   try {
@@ -310,7 +311,7 @@ const getApplicantsByOpportunity = async (req, res) => {
       });
     }
 
-    // 🧩 Step 1: Detect type automatically (Job or Internship)
+    // ✅ Step 1: Detect Job or Internship
     let type = "Job";
     let opportunity = await Job.findById(opportunityId);
 
@@ -322,22 +323,32 @@ const getApplicantsByOpportunity = async (req, res) => {
     if (!opportunity) {
       return res.status(404).json({
         success: false,
-        message: "Opportunity not found (Job or Internship)",
+        message: "Opportunity not found",
       });
     }
 
-    // 🧩 Step 2: Fetch all applications for this opportunity
+    // ✅ Step 2: Fetch all applications WITH atsScore
     const applications = await Application.find(
       type === "Job" ? { job: opportunityId } : { internship: opportunityId }
     )
-      .populate("user", "name email image resume skills") // Return applicant info
-      .sort({ appliedAt: -1 });
+      .populate("user", "name email image resume skills")
+      .sort({ appliedAt: -1 })
+      .lean(); // ✅ lean allows modifying output safely
+
+    // ✅ Step 3: Format applicants with ATS score included
+    const formattedApplicants = applications.map((app) => ({
+      _id: app._id,
+      appliedAt: app.appliedAt,
+      status: app.status,
+      user: app.user,
+      atsScore: app.atsScore || null,
+    }));
 
     return res.status(200).json({
       success: true,
       type,
-      totalApplicants: applications.length,
-      applicants: applications,
+      totalApplicants: formattedApplicants.length,
+      applicants: formattedApplicants,
     });
   } catch (error) {
     console.error("❌ Error fetching applicants:", error);
@@ -363,13 +374,16 @@ const sendDet_upDateStatus = async (req, res) => {
 
     const recruiterObjectId = new mongoose.Types.ObjectId(recruiterId);
 
-    // 2️⃣ Verify recruiter owns this opportunity (Job or Internship)
+    // 2️⃣ Verify recruiter owns this opportunity (Job or Internship) and populate company
     const opportunity =
-      (await Job.findOne({ _id: opporId, createdBy: recruiterObjectId })) ||
+      (await Job.findOne({
+        _id: opporId,
+        createdBy: recruiterObjectId,
+      }).populate("company")) ||
       (await InternshipModel.findOne({
         _id: opporId,
         createdBy: recruiterObjectId,
-      }));
+      }).populate("company"));
 
     if (!opportunity) {
       return res.status(403).json({
@@ -379,6 +393,10 @@ const sendDet_upDateStatus = async (req, res) => {
       });
     }
 
+    // Extract company name safely
+    const companyName = opportunity.company?.name || "Unknown Company";
+
+    console.log(companyName);
     // 3️⃣ Fetch applicant details
     const applicant = await User.findById(applicantId).select("-password");
     if (!applicant) {
@@ -406,13 +424,14 @@ const sendDet_upDateStatus = async (req, res) => {
       application.reviewedBy = recruiterObjectId;
       await application.save();
 
-      // 📧 send email
+      // 📧 send email with companyName
       const mailResult = await applicationStatusUpdate(
         applicant.email,
         applicant.name,
         opportunity.role,
         "Seen by recruiter",
-        recruiterName || "Recruiter"
+        recruiterName || "Recruiter",
+        companyName
       );
 
       if (!mailResult.success) {
@@ -431,6 +450,7 @@ const sendDet_upDateStatus = async (req, res) => {
           id: opportunity._id,
           role: opportunity.role,
           domain: opportunity.domain,
+          companyName, // Include in response if needed
         },
         status: application.status,
       });
@@ -441,7 +461,12 @@ const sendDet_upDateStatus = async (req, res) => {
       success: true,
       message: `Application already ${application.status}, no email sent.`,
       applicant,
-      opportunity,
+      opportunity: {
+        id: opportunity._id,
+        role: opportunity.role,
+        domain: opportunity.domain,
+        companyName, // Include in response if needed
+      },
       status: application.status,
     });
   } catch (error) {
@@ -454,6 +479,419 @@ const sendDet_upDateStatus = async (req, res) => {
   }
 };
 
+const changeOpportunityStatus = async (req, res) => {
+  try {
+    const { id } = req.params; // Opportunity ID
+    const { reason } = req.body;
+    const recruiterId = req.recruiter.id; // from recruiterAuth middleware
+
+    if (!reason || reason.trim().length < 5) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "Please provide a valid reason (min 5 characters) for closing this posting.",
+      });
+    }
+
+    // 🧩 Detect whether it's a Job or Internship
+    let opportunity = await Job.findById(id);
+    let type = "Job";
+
+    if (!opportunity) {
+      opportunity = await InternshipModel.findById(id);
+      type = "Internship";
+    }
+
+    if (!opportunity) {
+      return res.status(404).json({
+        success: false,
+        message: "Opportunity not found.",
+      });
+    }
+
+    // 🛑 Only allow change if status is 'Active'
+    if (opportunity.status !== "Active") {
+      return res.status(400).json({
+        success: false,
+        message: `Status cannot be changed because this ${type.toLowerCase()} is already ${
+          opportunity.status
+        }. Only Active postings can be closed.`,
+      });
+    }
+
+    // ✅ Update status to Closed
+    opportunity.status = "Closed";
+    opportunity.closureDetails = {
+      reason: reason.trim(),
+      closedBy: recruiterId,
+      closedAt: new Date(),
+    };
+
+    await opportunity.save();
+
+    return res.status(200).json({
+      success: true,
+      message: `${type} status changed to 'Closed' successfully.`,
+      data: {
+        id: opportunity._id,
+        type,
+        status: opportunity.status,
+        closureDetails: opportunity.closureDetails,
+      },
+    });
+  } catch (err) {
+    return res.status(500).json({
+      success: false,
+      message: err.message || "Server error while changing status.",
+    });
+  }
+};
+
+const getOpportunityStatus = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    let opportunity = await Job.findById(id).select(
+      "status closureDetails role"
+    );
+    let type = "Job";
+
+    if (!opportunity) {
+      opportunity = await InternshipModel.findById(id).select(
+        "status closureDetails role"
+      );
+      type = "Internship";
+    }
+
+    if (!opportunity) {
+      return res.status(404).json({
+        success: false,
+        message: "Opportunity not found",
+      });
+    }
+
+    return res.json({
+      success: true,
+      type,
+      data: {
+        status: opportunity.status,
+        role: opportunity.role,
+        closureDetails: opportunity.closureDetails || {},
+      },
+    });
+  } catch (err) {
+    res.status(500).json({
+      success: false,
+      message: err.message || "Server Error",
+    });
+  }
+};
+
+const searchApplicantsByName = async (req, res) => {
+  try {
+    const { id } = req.params; // opportunity ID
+    const { query = "" } = req.query; // typed letters from search box
+
+    if (!id) {
+      return res.status(400).json({
+        success: false,
+        message: "Opportunity ID is required.",
+      });
+    }
+
+    // 🧩 Detect opportunity type (Job or Internship)
+    let type = "Job";
+    let opportunity = await Job.findById(id).populate("applications");
+    if (!opportunity) {
+      opportunity = await InternshipModel.findById(id).populate("applications");
+      type = "Internship";
+    }
+
+    if (!opportunity) {
+      return res.status(404).json({
+        success: false,
+        message: "Opportunity not found.",
+      });
+    }
+
+    // 🧾 Get all applications for this opportunity
+    const applications = await Application.find({
+      _id: { $in: opportunity.applications },
+    }).populate("user", "name email image");
+
+    // 🧠 Filter by letter (case insensitive)
+    const filteredApplicants = applications
+      .filter((a) => a.user?.name?.toLowerCase().includes(query.toLowerCase()))
+      .map((a) => ({
+        id: a._id,
+        name: a.user?.name || "Unknown",
+        email: a.user?.email || "",
+        image: a.user?.image || null,
+      }));
+
+    return res.status(200).json({
+      success: true,
+      type,
+      total: filteredApplicants.length,
+      applicants: filteredApplicants,
+    });
+  } catch (err) {
+    return res.status(500).json({
+      success: false,
+      message: "Server error while searching applicants.",
+    });
+  }
+};
+
+const filterApplicantsForOpportunity = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const {
+      name,
+      skill,
+      minScore,
+      maxScore,
+      experience,
+      education,
+      location,
+      status,
+    } = req.query;
+
+    if (!id)
+      return res
+        .status(400)
+        .json({ success: false, message: "Opportunity ID is required" });
+
+    // Detect opportunity type
+    let type = "Job";
+    let opportunity = await Job.findById(id).populate("applications");
+    if (!opportunity) {
+      opportunity = await InternshipModel.findById(id).populate("applications");
+      type = "Internship";
+    }
+
+    if (!opportunity)
+      return res
+        .status(404)
+        .json({ success: false, message: "Opportunity not found" });
+
+    // Fetch related applications
+    const applications = await Application.find({
+      _id: { $in: opportunity.applications },
+    }).populate(
+      "user",
+      "name email image skills education location experience"
+    );
+
+    let filtered = applications;
+
+    // 🔹 Filter by name/keyword
+    if (name) {
+      const query = name.toLowerCase();
+      filtered = filtered.filter((a) =>
+        a.user?.name?.toLowerCase().includes(query)
+      );
+    }
+
+    // 🔹 Filter by skill
+    if (skill) {
+      const skillQuery = skill.toLowerCase();
+      filtered = filtered.filter((a) =>
+        a.user?.skills?.some((s) => s.toLowerCase().includes(skillQuery))
+      );
+    }
+
+    // 🔹 Filter by education
+    if (education) {
+      filtered = filtered.filter((a) =>
+        a.user?.education?.toLowerCase()?.includes(education.toLowerCase())
+      );
+    }
+
+    // 🔹 Filter by experience
+    if (experience) {
+      filtered = filtered.filter((a) =>
+        a.user?.experience?.toLowerCase()?.includes(experience.toLowerCase())
+      );
+    }
+
+    // 🔹 Filter by location
+    if (location) {
+      filtered = filtered.filter((a) =>
+        a.user?.location?.toLowerCase()?.includes(location.toLowerCase())
+      );
+    }
+
+    // 🔹 Filter by status (based on Application model enums)
+    if (
+      status &&
+      [
+        "pending",
+        "seen",
+        "shortlisted",
+        "interview_scheduled",
+        "interviewed",
+        "offered",
+        "selected",
+        "rejected",
+        "withdrawn",
+      ].includes(status)
+    ) {
+      filtered = filtered.filter((a) => a.status === status);
+    }
+
+    // 🔹 Filter by ATS score
+    if (minScore || maxScore) {
+      filtered = filtered.filter((a) => {
+        const score = a.atsScore || 0;
+        return (
+          (minScore ? score >= parseFloat(minScore) : true) &&
+          (maxScore ? score <= parseFloat(maxScore) : true)
+        );
+      });
+    }
+
+    const results = filtered.map((a) => ({
+      id: a._id,
+      name: a.user?.name,
+      email: a.user?.email,
+      image: a.user?.image || null,
+      atsScore: a.atsScore || null,
+      appliedAt: a.appliedAt,
+      status: a.status,
+    }));
+
+    return res.status(200).json({
+      success: true,
+      type,
+      total: results.length,
+      applicants: results,
+      filtered: true,
+    });
+  } catch (err) {
+    console.error("❌ Filter Applicants Error:", err);
+    res.status(500).json({
+      success: false,
+      message: "Internal server error",
+    });
+  }
+};
+
+const shortlistApplicant = async (req, res) => {
+  try {
+    const { opporId, applId } = req.body;
+    const recruiterId = req.recruiter?.id;
+
+    if (!opporId || !applId) {
+      return res.status(400).json({
+        success: false,
+        message: "Opportunity ID and Application ID are required.",
+      });
+    }
+
+    // 🔹 Validate recruiterId (must be a valid ObjectId string)
+    if (!mongoose.Types.ObjectId.isValid(recruiterId)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid recruiter ID.",
+      });
+    }
+
+    // 🔹 Convert recruiterId to string for comparison
+    const recruiterIdStr = String(recruiterId);
+
+    // 🔹 Find Job or Internship
+    let opportunity = await Job.findById(opporId).populate(
+      "company",
+      "name logo"
+    );
+    let oppType = "Job";
+
+    if (!opportunity) {
+      opportunity = await InternshipModel.findById(opporId).populate(
+        "company",
+        "name logo"
+      );
+      oppType = "Internship";
+    }
+
+    if (!opportunity) {
+      return res.status(404).json({
+        success: false,
+        message: "Opportunity not found.",
+      });
+    }
+
+    // 🔹 Ensure recruiter owns this posting (createdBy is ObjectId)
+    const createdByStr = String(opportunity.createdBy);
+
+    if (createdByStr !== recruiterIdStr) {
+      return res.status(403).json({
+        success: false,
+        message: "Unauthorized recruiter access.",
+      });
+    }
+
+    // 🔹 Find the application
+    const application = await Application.findById(applId).populate(
+      "user",
+      "name email"
+    );
+
+    if (!application) {
+      return res.status(404).json({
+        success: false,
+        message: "Application not found.",
+      });
+    }
+
+    // 🔹 Verify application belongs to the same opportunity
+    const oppField = oppType === "Job" ? "job" : "internship";
+
+    if (String(application[oppField]) !== String(opporId)) {
+      return res.status(400).json({
+        success: false,
+        message: "Application does not belong to this opportunity.",
+      });
+    }
+
+    // 🔹 Already shortlisted?
+    if (application.status === "shortlisted") {
+      return res.status(400).json({
+        success: false,
+        message: "Applicant is already shortlisted.",
+      });
+    }
+
+    // 🔹 Update application status
+    application.status = "shortlisted";
+    application.reviewedBy = recruiterId;
+    await application.save(); // ✅ Save to DB
+
+    // 🔹 Prepare email data
+    const applicantName = application.user.name;
+    const applicantEmail = application.user.email;
+    const companyName = opportunity.company.name || "Company";
+    const role = opportunity.role || opportunity.title || "Opportunity";
+
+    // 🔹 Send email
+    await sendShortlistEmail(applicantEmail, applicantName, companyName, role);
+
+    return res.status(200).json({
+      success: true,
+      message: `Applicant ${applicantName} shortlisted successfully.`,
+      updatedStatus: "shortlisted",
+      opportunityType: oppType,
+    });
+  } catch (err) {
+    console.error("Shortlist Error:", err);
+    return res.status(500).json({
+      success: false,
+      message: "Internal server error.",
+    });
+  }
+};
+
 module.exports = {
   createJobPosting,
   getallPosting,
@@ -461,4 +899,9 @@ module.exports = {
   deletePosting,
   getApplicantsByOpportunity,
   sendDet_upDateStatus,
+  changeOpportunityStatus,
+  getOpportunityStatus,
+  searchApplicantsByName,
+  filterApplicantsForOpportunity,
+  shortlistApplicant,
 };

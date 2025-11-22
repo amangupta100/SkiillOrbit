@@ -101,7 +101,6 @@ function chat_Socket(io) {
             (id) => id.toString() !== chatId.toString()
           );
         }
-        console.log(`🚪 Chat closed: ${chatId} by ${viewerId}`);
       } catch (err) {
         console.error("Error in closeChat:", err);
       }
@@ -116,8 +115,6 @@ function chat_Socket(io) {
         if (!socket.data.openChats.includes(chatId)) {
           socket.data.openChats.push(chatId);
         }
-
-        console.log(socket.data.openChats);
 
         // Fetch only messages that need update (read)
         const chat = await Chat.findById(chatId).select("messages members");

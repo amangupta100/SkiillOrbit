@@ -10,15 +10,16 @@ const authMiddleware = async (req, res, next) => {
   }
 
   try {
-    // verify access token
     const decoded = jwt.verify(accessToken, process.env.ACCESS_SECRET_KEY);
-    await attachUser(decoded.id, req);
+
+    const authUser = await attachUser(decoded.id, req);
+    if (!authUser) {
+      return res.status(401).json({ success: false, message: "Invalid user" });
+    }
+
     return next();
   } catch (err) {
-    console.log("Auth Middleware Error:", err.message);
-
     if (err.name === "TokenExpiredError" || err.message === "jwt expired") {
-      // 👇 important: don't refresh here, just tell client to refresh
       return res
         .status(401)
         .json({ success: false, message: "Access token expired" });
@@ -28,18 +29,36 @@ const authMiddleware = async (req, res, next) => {
   }
 };
 
-// helper function to attach user/recruiter
+// helper function to attach user/recruiter/admin
 async function attachUser(userId, req) {
   const [user, recruiter] = await Promise.all([
     User.findById(userId)
-      .select("_id name role image desiredRole desiredDomain")
+      .select("_id name role image desiredRole desiredDomain email")
       .lean(),
-    Recruiter.findById(userId).select("_id name role image company").lean(),
+    Recruiter.findById(userId)
+      .select("_id name role image companyId email")
+      .lean(),
   ]);
 
   const authUser = user || recruiter;
   if (!authUser) return null;
 
+  // ⚠️ ADMIN VALIDATION (EMAIL MUST MATCH ENV)
+  const ADMIN_EMAIL = process.env.ADMIN_EMAIL;
+  const isAdmin = authUser.email === ADMIN_EMAIL;
+
+  if (authUser.role === "admin" && isAdmin) {
+    req.admin = {
+      id: authUser._id,
+      name: authUser.name,
+      role: "admin",
+      email: authUser.email,
+      image: authUser.image,
+    };
+    return authUser;
+  }
+
+  // job-seeker
   if (authUser.role === "job-seeker") {
     req.user = {
       id: authUser._id,
@@ -48,15 +67,27 @@ async function attachUser(userId, req) {
       image: authUser.image,
       desiredRole: authUser.desiredRole,
       domain: authUser.desiredDomain,
+      email: authUser.email,
     };
-  } else {
+    return authUser;
+  }
+
+  // recruiter
+  if (authUser.role === "recruiter") {
     req.recruiter = {
       id: authUser._id,
       name: authUser.name,
       role: authUser.role,
       image: authUser.image,
+      email: authUser.email,
       ...(recruiter && { company: recruiter.companyId }),
     };
+    return authUser;
+  }
+
+  // ❌ if role is admin but email does not match -- block it
+  if (authUser.role === "admin" && !isAdmin) {
+    return null;
   }
 
   return authUser;

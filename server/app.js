@@ -1,5 +1,8 @@
 // app.js
 require("dotenv").config();
+require("./src/helpers/interviewRemainderWorker");
+require("./src/helpers/admin/genQuestionWorker");
+require("./src/helpers/test/testEvalWorker");
 const express = require("express");
 const http = require("http");
 const cors = require("cors");
@@ -75,6 +78,20 @@ app.use("/api/job-seeker/opportunity", require("./src/routes/user/jobRoutes"));
 app.use("/api/job-seeker/tests", require("./src/routes/user/testRoute"));
 app.use("/api/job-seeker/profile", require("./src/routes/user/profileRoute"));
 app.use("/api/job-seeker/streaks", require("./src/routes/user/streakRoutes"));
+app.use(
+  "/api/common/notification",
+  require("./src/routes/common/NotificationRoute")
+);
+
+//admin
+app.use(
+  "/api/admin/manageDomain&Skills",
+  require("./src/routes/admin/manageDomain&Skills")
+);
+app.use(
+  "/api/admin/genQuestion",
+  require("./src/routes/admin/genQuestionRoute")
+);
 
 // Common
 app.use(
@@ -82,6 +99,9 @@ app.use(
   require("./src/routes/common/getOpporDetail")
 );
 app.use("/api/common/person", require("./src/routes/common/getPersonDet"));
+
+//support controller
+app.use("/api/common/support", require("./src/routes/admin/manageQuery"));
 
 // ----------------- SOCKET SETUP -----------------
 const { Server } = require("socket.io");

@@ -51,7 +51,7 @@ const JobSeekerAppliedOpportunities = () => {
 
       {appliedJobs.length === 0 ? (
         <div className="text-center text-gray-500 mt-10">
-          You haven’t applied to any jobs yet.
+          You haven’t applied to any opportunities yet.
         </div>
       ) : (
         <div className="grid gap-8">
@@ -108,7 +108,7 @@ const JobSeekerAppliedOpportunities = () => {
                       onClick={() =>
                         router.push(`/job-seekerDashboard/applied/${app._id}`)
                       }
-                      className="bg-white text-black border-[1.6px] border-zinc-300 mt-3"
+                      className="bg-white hover:bg-gray-200 text-black border-[1.6px] border-zinc-300 mt-3"
                     >
                       Get Details
                     </Button>

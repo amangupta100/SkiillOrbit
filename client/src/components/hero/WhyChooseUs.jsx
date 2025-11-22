@@ -17,7 +17,7 @@ export default function WhyChooseUs() {
     },
     {
       label: "Mock Interview",
-      ours: "AI-driven mock interviews with SkillOrbit's Virtual Interviewer Jia — practice real-world questions before facing recruiters.",
+      ours: "AI-driven mock interviews with SkillsOrbit's Virtual Interviewer Jia — practice real-world questions before facing recruiters.",
       others:
         "No structured mock interviews. Candidates enter interviews unprepared and anxious.",
     },
@@ -36,7 +36,7 @@ export default function WhyChooseUs() {
         </h2>
         <p className="text-gray-500 text-lg mb-20 max-w-2xl mx-auto">
           We built this platform to fix what's broken in hiring — transparency,
-          skill-first filtering, and fast recruiter response.
+          skill-based filtering, and fast recruiter response.
         </p>
       </div>
       <Card className="rounded-xl overflow-hidden bg-gradient-to-b from-[#2A956B] to-gray-500 text-white shadow-lg">
@@ -49,7 +49,7 @@ export default function WhyChooseUs() {
                   Feature
                 </th>
                 <th className="p-4 border-b border-r border-white font-bold text-center">
-                  SkillOrbit
+                  SkillsOrbit
                 </th>
                 <th className="p-4 border-b border-white font-bold text-center">
                   Other Platforms

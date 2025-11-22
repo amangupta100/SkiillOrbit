@@ -1,6 +1,7 @@
 const Job = require("../../models/JobModel");
 const Internship = require("../../models/InternshipModel");
 const User = require("../../models/UserModel");
+const ApplicationModel = require("../../models/ApplicationModel");
 
 const processAppl = async (req, res) => {
   try {
@@ -100,4 +101,57 @@ const processAppl = async (req, res) => {
   }
 };
 
-module.exports = { processAppl };
+const saveAtsScores = async (req, res) => {
+  try {
+    const { id } = req.params; // job/internship id
+    const { scores } = req.body; // [{ applicantId, total, match, breakdown }]
+    console.log(scores, id);
+
+    if (!scores || !scores.length) {
+      return res
+        .status(400)
+        .json({ success: false, message: "Scores missing" });
+    }
+
+    // ✅ Step 1 → Check if ID is a Job
+    let opp = await Job.findById(id);
+    let type = "Job";
+
+    // ✅ Step 2 → If not job, check Internship
+    if (!opp) {
+      opp = await Internship.findById(id);
+      if (!opp) {
+        return res.status(404).json({
+          success: false,
+          message: "Opportunity not found",
+        });
+      }
+      type = "Internship";
+    }
+
+    // ✅ Step 3 → Update ATS score for each applicant
+    const updates = scores.map((s) =>
+      ApplicationModel.updateOne(
+        {
+          user: s.applicantId,
+          ...(type === "Job" ? { job: id } : { internship: id }),
+        },
+        { $set: { atsScore: s.total } }
+      )
+    );
+
+    await Promise.all(updates);
+
+    return res.json({
+      success: true,
+      message: "ATS scores saved successfully",
+    });
+  } catch (err) {
+    return res.status(500).json({
+      success: false,
+      message: err.message || "Server error",
+    });
+  }
+};
+
+module.exports = { processAppl, saveAtsScores };

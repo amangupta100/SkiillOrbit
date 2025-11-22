@@ -1,7 +1,6 @@
 "use client";
 import { Button } from "@/components/ui/button";
-import { X } from "lucide-react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { X, Loader2 } from "lucide-react";
 import React, { useEffect, useState } from "react";
 import { Label } from "@/components/ui/label";
 import {
@@ -12,51 +11,114 @@ import {
   SelectItem,
 } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
+import { toast } from "sonner";
+import API from "@/utils/interceptor";
 
-const FilterApplicantModal = ({ isOpen, closeModal }) => {
-  const router = useRouter();
-  const searchParams = useSearchParams();
-
+const FilterApplicantModal = ({
+  isOpen,
+  closeModal,
+  opportunityId,
+  setApplicants,
+  setFiltered, // ✅ parent state to toggle between “All” or “Filtered”
+}) => {
   const [filters, setFilters] = useState({
-    benchmark: "",
+    name: "",
+    minScore: "",
+    maxScore: "",
+    benchmark: "", // ✅ NEW: Benchmark Score filter
     experience: "",
     education: "",
-    location: "",
     status: "",
-    keyword: "",
+    location: "",
+    skill: "",
   });
+  const [isLoading, setIsLoading] = useState(false);
+
+  // ✅ Prefill filters from URL params on modal open
+  useEffect(() => {
+    if (isOpen) {
+      const urlParams = new URLSearchParams(window.location.search);
+      const prefilledFilters = {
+        name: urlParams.get("name") || "",
+        minScore: urlParams.get("minScore") || "",
+        maxScore: urlParams.get("maxScore") || "",
+        benchmark: urlParams.get("benchmark") || "", // ✅ NEW
+        experience: urlParams.get("experience") || "",
+        education: urlParams.get("education") || "",
+        status: urlParams.get("status") || "",
+        location: urlParams.get("location") || "",
+        skill: urlParams.get("skill") || "",
+      };
+      setFilters(prefilledFilters);
+    }
+  }, [isOpen]);
 
   useEffect(() => {
-    if (!isOpen) return;
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.body.style.overflow = "auto";
-    };
+    if (isOpen) document.body.style.overflow = "hidden";
+    else document.body.style.overflow = "auto";
   }, [isOpen]);
 
   if (!isOpen) return null;
 
-  const handleReset = () => {
-    setFilters({
-      benchmark: "",
-      experience: "",
-      education: "",
-      location: "",
-      status: "",
-      keyword: "",
-    });
+  const setFilterValue = (key, value) => {
+    setFilters((prev) => ({ ...prev, [key]: value }));
   };
 
-  const handleApplyFilters = () => {
-    // Build filter string for URL
-    const activeFilters = Object.entries(filters)
-      .filter(([_, val]) => val && val !== "")
-      .map(([key, val]) => `${key}:${encodeURIComponent(val)}`)
-      .join(",");
+  // 🔹 Reset filters and update URL
+  const handleReset = async () => {
+    const emptyFilters = {
+      name: "",
+      minScore: "",
+      maxScore: "",
+      benchmark: "", // ✅ NEW
+      experience: "",
+      education: "",
+      status: "",
+      location: "",
+      skill: "",
+    };
+    setFilters(emptyFilters);
+    // Update URL to empty
+    window.history.replaceState(null, "", window.location.pathname);
+    setFiltered(false); // ✅ tell parent we're back to all
+    toast.success("Showing all applicants");
+    closeModal();
+  };
 
-    const url = activeFilters ? `?filter=${activeFilters}` : "";
-    router.push(url);
-    onClose();
+  // 🔹 Apply filters
+  const handleApplyFilters = async () => {
+    setIsLoading(true);
+    try {
+      const params = new URLSearchParams();
+      Object.entries(filters).forEach(([key, val]) => {
+        if (val && val.trim() !== "") params.append(key, val);
+      });
+
+      const urlParams = params.toString();
+      // ✅ Update URL with filters (ensures they appear and persist)
+      window.history.replaceState(
+        null,
+        "",
+        `${window.location.pathname}?${urlParams}`
+      );
+
+      const res = await API.get(
+        `/recruiter/managePosting/filterApplicants/${opportunityId}?${urlParams}`
+      );
+
+      if (res.data.success) {
+        setApplicants(res.data.applicants);
+        setFiltered(true); // ✅ tell parent we’re filtered
+        toast.success(`Showing ${res.data.total} filtered applicants`);
+        closeModal();
+      } else {
+        toast.warning(res.data.message || "Failed to filter applicants");
+      }
+    } catch (err) {
+      toast.error(err.response?.data?.message || "Error applying filters");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -75,24 +137,59 @@ const FilterApplicantModal = ({ isOpen, closeModal }) => {
             variant="ghost"
             className="border-[1.6px] border-zinc-200"
             onClick={handleReset}
+            disabled={isLoading}
           >
             Reset
           </Button>
         </div>
 
-        {/* Keyword Search */}
+        {/* Name/Keyword */}
         <div className="space-y-1 mt-5">
-          <Label>Keyword</Label>
+          <Label>Name/Keyword</Label>
           <Input
-            placeholder="Search by name, skill, etc."
-            value={filters.keyword}
-            onChange={(e) => setFilterValue("keyword", e.target.value)}
+            placeholder="Search by name"
+            value={filters.name}
+            onChange={(e) => setFilterValue("name", e.target.value)}
           />
         </div>
 
-        {/* Benchmark Score */}
+        {/* Skill */}
+        <div className="space-y-1 mt-5">
+          <Label>Skill</Label>
+          <Input
+            placeholder="e.g. React, Django"
+            value={filters.skill}
+            onChange={(e) => setFilterValue("skill", e.target.value)}
+          />
+        </div>
+
+        {/* ATS Score */}
+        <div className="flex items-center gap-3 mt-7">
+          <div className="flex-1 space-y-1">
+            <Label>Min Score (%)</Label>
+            <Input
+              type="number"
+              min="0"
+              max="100"
+              value={filters.minScore}
+              onChange={(e) => setFilterValue("minScore", e.target.value)}
+            />
+          </div>
+          <div className="flex-1 space-y-1">
+            <Label>Max Score (%)</Label>
+            <Input
+              type="number"
+              min="0"
+              max="100"
+              value={filters.maxScore}
+              onChange={(e) => setFilterValue("maxScore", e.target.value)}
+            />
+          </div>
+        </div>
+
+        {/* ✅ NEW: Benchmark Score */}
         <div className="space-y-1 mt-7">
-          <Label>Benchmark Score (%)</Label>
+          <Label>Benchmark Score</Label>
           <Select
             value={filters.benchmark}
             onValueChange={(val) => setFilterValue("benchmark", val)}
@@ -101,11 +198,11 @@ const FilterApplicantModal = ({ isOpen, closeModal }) => {
               <SelectValue placeholder="Select benchmark" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="25">25%</SelectItem>
-              <SelectItem value="50">50%</SelectItem>
-              <SelectItem value="75">75%</SelectItem>
-              <SelectItem value="100">100%</SelectItem>
-              <SelectItem value="above100">Above 100%</SelectItem>
+              <SelectItem value="ALL">All</SelectItem>
+              <SelectItem value="25%">25%</SelectItem>
+              <SelectItem value="50%">50%</SelectItem>
+              <SelectItem value="75%">75%</SelectItem>
+              <SelectItem value="100%">100%</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -129,7 +226,7 @@ const FilterApplicantModal = ({ isOpen, closeModal }) => {
           </Select>
         </div>
 
-        {/* Education Level */}
+        {/* Education */}
         <div className="space-y-1 mt-7">
           <Label>Education</Label>
           <Select
@@ -140,16 +237,15 @@ const FilterApplicantModal = ({ isOpen, closeModal }) => {
               <SelectValue placeholder="Select education" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="All">All</SelectItem>
               <SelectItem value="High School">High School</SelectItem>
-              <SelectItem value="Bachelor">Bachelor's</SelectItem>
-              <SelectItem value="Master">Master's</SelectItem>
+              <SelectItem value="Bachelors">Bachelors</SelectItem>
+              <SelectItem value="Masters">Masters</SelectItem>
               <SelectItem value="PhD">PhD</SelectItem>
             </SelectContent>
           </Select>
         </div>
 
-        {/* Application Status */}
+        {/* Status (matches ApplicationModel enums) */}
         <div className="space-y-1 mt-7">
           <Label>Application Status</Label>
           <Select
@@ -160,11 +256,17 @@ const FilterApplicantModal = ({ isOpen, closeModal }) => {
               <SelectValue placeholder="Select status" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="All">All</SelectItem>
-              <SelectItem value="Pending">Pending</SelectItem>
-              <SelectItem value="Reviewed">Reviewed</SelectItem>
-              <SelectItem value="Shortlisted">Shortlisted</SelectItem>
-              <SelectItem value="Rejected">Rejected</SelectItem>
+              <SelectItem value="pending">Pending</SelectItem>
+              <SelectItem value="seen">Seen</SelectItem>
+              <SelectItem value="shortlisted">Shortlisted</SelectItem>
+              <SelectItem value="interview_scheduled">
+                Interview Scheduled
+              </SelectItem>
+              <SelectItem value="interviewed">Interviewed</SelectItem>
+              <SelectItem value="offered">Offered</SelectItem>
+              <SelectItem value="selected">Selected</SelectItem>
+              <SelectItem value="rejected">Rejected</SelectItem>
+              <SelectItem value="withdrawn">Withdrawn</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -180,20 +282,33 @@ const FilterApplicantModal = ({ isOpen, closeModal }) => {
               <SelectValue placeholder="Select location" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="All">All</SelectItem>
               <SelectItem value="Remote">Remote</SelectItem>
-              <SelectItem value="On-site">On-site</SelectItem>
               <SelectItem value="Hybrid">Hybrid</SelectItem>
+              <SelectItem value="On-site">On-site</SelectItem>
             </SelectContent>
           </Select>
         </div>
 
         <div className="flex justify-between mt-8">
           <Button
+            variant="outline"
+            onClick={() => closeModal()}
+            disabled={isLoading}
+          >
+            Cancel
+          </Button>
+          <Button
             className="bg-black text-white hover:bg-black/90"
             onClick={handleApplyFilters}
+            disabled={isLoading}
           >
-            Apply Filters
+            {isLoading ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Applying...
+              </>
+            ) : (
+              "Apply Filters"
+            )}
           </Button>
         </div>
       </div>

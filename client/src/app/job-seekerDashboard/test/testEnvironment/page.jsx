@@ -28,8 +28,6 @@ export default function TestPage() {
   const { isSidebarVisible } = useProgressSidebarStore();
   const [timeLeft, setTimeLeft] = useState(null);
   const { isNotificationContentVisible } = useNotificationStore();
-  const { startRecording, stopRecording } = useRecordingStore();
-  const addChunk = useRecordingStore.getState().addChunk;
   const router = useRouter();
 
   // Check if instructions were already shown
@@ -51,7 +49,7 @@ export default function TestPage() {
 
         // Initialize code with saved answer or question's default code
         if (parsedQuestions.length > 0) {
-          let initialCode = parsedQuestions[0].codeSnippet || "";
+          let initialCode = parsedQuestions[0].starterCode || "";
 
           if (savedAnswers) {
             const parsedAnswers = JSON.parse(savedAnswers);
@@ -168,7 +166,6 @@ export default function TestPage() {
           ])
         );
 
-        stopRecording();
         router.push("/job-seekerDashboard/test/submit");
         Cookies.remove("tt");
         setTimeout(() => {
@@ -178,35 +175,35 @@ export default function TestPage() {
       setIsFullscreen(!!document.fullscreenElement);
     };
 
-    const handleVisibilityChange = () => {
-      // ⛔ Ignore first mount and unmount
-      if (!hasMounted || isUnmounting) return;
+    // const handleVisibilityChange = () => {
+    //   // ⛔ Ignore first mount and unmount
+    //   if (!hasMounted || isUnmounting) return;
 
-      if (document.hidden) {
-        toast.warning(
-          "Switching tabs or minimizing the window is not allowed during the test."
-        );
+    //   if (document.hidden) {
+    //     toast.warning(
+    //       "Switching tabs or minimizing the window is not allowed during the test."
+    //     );
 
-        sessionStorage.setItem(
-          "flags",
-          JSON.stringify([
-            "Attempted to switch browser tab or minimize the window during test.",
-          ])
-        );
+    //     sessionStorage.setItem(
+    //       "flags",
+    //       JSON.stringify([
+    //         "Attempted to switch browser tab or minimize the window during test.",
+    //       ])
+    //     );
 
-        router.push("/job-seekerDashboard/test/submit");
+    //     router.push("/job-seekerDashboard/test/submit");
 
-        setTimeout(() => {
-          Cookies.remove("isInstructionsShown");
-        }, 1500);
-      }
-    };
+    //     setTimeout(() => {
+    //       Cookies.remove("isInstructionsShown");
+    //     }, 1500);
+    //   }
+    // };
 
     // Attach listeners
     document.addEventListener("fullscreenchange", handleFullscreenChange);
     document.addEventListener("webkitfullscreenchange", handleFullscreenChange);
     document.addEventListener("msfullscreenchange", handleFullscreenChange);
-    document.addEventListener("visibilitychange", handleVisibilityChange);
+    // document.addEventListener("visibilitychange", handleVisibilityChange);
 
     // Allow visibility detection only after a short delay
     const mountTimer = setTimeout(() => {
@@ -228,7 +225,7 @@ export default function TestPage() {
         "msfullscreenchange",
         handleFullscreenChange
       );
-      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      // document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
   }, [isFullscreen, router]);
 
@@ -238,7 +235,7 @@ export default function TestPage() {
 
       // Check if we have a saved answer for this question
       const savedAnswers = sessionStorage.getItem("answers");
-      let newCode = questions[newIndex].codeSnippet || "";
+      let newCode = questions[newIndex].starterCode || "";
 
       if (savedAnswers) {
         const parsedAnswers = JSON.parse(savedAnswers);
@@ -251,13 +248,6 @@ export default function TestPage() {
       setIsCodeChanged(false);
     }
   };
-
-  useEffect(() => {
-    return () => {
-      // Cleanup on unmount (e.g., navigation away)
-      stopRecording();
-    };
-  }, [stopRecording]);
 
   const initializeKioskMode = useCallback(() => {
     const handleKeyDown = (e) => {
@@ -274,61 +264,6 @@ export default function TestPage() {
     };
   }, []);
 
-  const initializeRecording = async () => {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: true,
-        audio: true,
-      });
-      // streamRef.current = stream;  // OPTIONAL: Keep if used elsewhere
-
-      let mimeType = "video/webm;codecs=vp9";
-      if (!MediaRecorder.isTypeSupported(mimeType)) {
-        console.warn("VP9 not supported, falling back to default webm");
-        mimeType = "video/webm"; // Fallback MIME type
-      }
-
-      const recorder = new MediaRecorder(stream, {
-        mimeType,
-        videoBitsPerSecond: 2500000,
-      });
-      // recorderRef.current = recorder;  // OPTIONAL: Keep if used elsewhere
-
-      recorder.ondataavailable = (e) => {
-        if (e.data.size > 0) {
-          addChunk(e.data); // This is from store
-        } else {
-          console.warn("Empty chunk received");
-        }
-      };
-
-      recorder.onstart = () => console.log("Recording started");
-      recorder.onstop = () => console.log("Recording stopped");
-      recorder.onerror = (e) => console.error("Recorder error:", e);
-
-      recorder.start(100);
-
-      // UPDATED: Set in store instead of local ref
-      useRecordingStore.getState().initializeMedia(recorder, stream);
-
-      startRecording(); // From store
-
-      console.log("Recording started with mimeType:", recorder.mimeType);
-    } catch (err) {
-      console.error("Recording initialization error:", err);
-      toast.error("Camera access error: " + err.message);
-    }
-  };
-
-  useEffect(() => {
-    return () => {
-      // Only clear if not submitting
-      if (!window.location.pathname.includes("submit")) {
-        useRecordingStore.getState().stopRecording();
-      }
-    };
-  }, []);
-
   const handleStartTest = async () => {
     try {
       Cookies.set("isInstructionsShown", "true", { expires: 1 });
@@ -338,9 +273,6 @@ export default function TestPage() {
       if (!fullscreenSuccess) {
         toast.warning("Fullscreen not enabled - some features may be limited");
       }
-
-      // Start recording only after fullscreen attempt
-      await initializeRecording();
     } catch (error) {
       toast.error("Failed to initialize test environment");
     }
@@ -349,7 +281,7 @@ export default function TestPage() {
   const currentQuestion = questions[currentQuestionIndex] || {
     title: "",
     description: "",
-    codeSnippet: "",
+    starterCode: "",
     difficulty: "medium",
     skill: "",
   };

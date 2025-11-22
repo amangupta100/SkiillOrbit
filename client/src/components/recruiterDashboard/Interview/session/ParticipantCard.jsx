@@ -28,6 +28,7 @@ function ParticipantCard({
   socketRef,
   roomId,
   isMonitoring = false, // 🔹 Receives from parent (monitoredParticipants.has(p.socketId))
+  containerClass = "w-[450px] h-[270px]", // <-- new prop with default
 }) {
   const firstLetter = participant?.userName?.charAt(0)?.toUpperCase() || "?";
 
@@ -43,7 +44,9 @@ function ParticipantCard({
 
   return (
     <TooltipProvider>
-      <div className="relative bg-black rounded-lg overflow-hidden flex items-center justify-center w-[450px] h-[270px]">
+      <div
+        className={`relative bg-black rounded-lg overflow-hidden flex items-center justify-center ${containerClass}`}
+      >
         {/* Controls Dropdown with Tooltip */}
         <div className="absolute top-2 right-2 z-50">
           <DropdownMenu>
@@ -75,6 +78,7 @@ function ParticipantCard({
                 {isMonitoring ? "Stop Monitoring" : "Monitor Activities"}
               </DropdownMenuItem>
               <DropdownMenuItem
+                disabled
                 onClick={() => onFullScreen?.(participant.socketId)}
               >
                 View in Full Screen

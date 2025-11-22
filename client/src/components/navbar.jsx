@@ -1,24 +1,26 @@
 "use client";
 import Image from "next/image";
-import logo from "@/assests/logo.png";
+import logo from "@/assests/skillsorbit_logo.png";
 import Link from "next/link";
 import icon from "@/assests/menu-veggie-burger.svg";
 import useSidebarStore from "@/store/sidebarStore";
 import Sidebar from "./hero/Sidebar";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { Button } from "./ui/button";
-import { useEffect } from "react";
 
 const Header = () => {
   const { isSidebarOpen, toggleSidebar } = useSidebarStore();
   const pathname = usePathname();
 
-  if (pathname.startsWith("/interviews")) {
+  if (
+    pathname.startsWith("/interviews") ||
+    pathname.startsWith("/adminDashboard")
+  ) {
     return null;
   }
   return (
     <div>
-      <div className="w-full z-[100] flex items-center justify-between border-b-[1.6px] border-zinc-300 md:px-7 px-4 py-2 bg-zinc-200/20 backdrop-blur-lg">
+      <div className="w-full z-[100] flex items-center justify-between border-b-[1.6px] border-zinc-300 md:px-7 px-2 py-2 bg-zinc-200/20 backdrop-blur-lg">
         <>
           <Image
             className="cursor-pointer"
@@ -28,7 +30,7 @@ const Header = () => {
             onContextMenu={(e) => e.preventDefault()}
             alt="logo"
             src={logo}
-            width={136}
+            width={155}
             height={68}
           />
         </>
@@ -36,7 +38,8 @@ const Header = () => {
         {!pathname.includes("/register/job-seeker/profileSetup") && (
           <>
             <div className={`hidden sm:gap-5 sm:flex sm:items-center`}>
-              <Link href="/about">About</Link>
+              <Link href="/about">About Us</Link>
+              <Link href="/contact_us">Contact Us</Link>
               <Button
                 className="text-base font-light"
                 onClick={() => (window.location.href = "/login/job-seeker")}
@@ -48,7 +51,7 @@ const Header = () => {
               onClick={toggleSidebar}
               alt="Veggie_Icon"
               src={icon}
-              className="sm:hidden inline-block mr-5"
+              className="sm:hidden inline-block"
               width={35}
               height={35}
             />

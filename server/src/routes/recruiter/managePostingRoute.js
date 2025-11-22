@@ -6,6 +6,11 @@ const {
   deletePosting,
   getApplicantsByOpportunity,
   sendDet_upDateStatus,
+  changeOpportunityStatus,
+  getOpportunityStatus,
+  searchApplicantsByName,
+  filterApplicantsForOpportunity,
+  shortlistApplicant,
 } = require("../../controllers/recruiter/ManagePostingContr");
 const authMiddleware = require("../../helpers/common/authMiddleware");
 
@@ -19,5 +24,14 @@ router.post(
   authMiddleware,
   sendDet_upDateStatus
 );
+router.put("/changeStatus/:id", authMiddleware, changeOpportunityStatus);
+router.get("/status/:id", authMiddleware, getOpportunityStatus);
+router.get("/searchApplicants/:id", authMiddleware, searchApplicantsByName);
+router.get(
+  "/filterApplicants/:id",
+  authMiddleware,
+  filterApplicantsForOpportunity
+);
+router.post("/shortlistApl", authMiddleware, shortlistApplicant);
 
 module.exports = router;

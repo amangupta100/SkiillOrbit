@@ -1,5 +1,6 @@
 "use client";
 import React, { useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import ChatSidebar from "../../../components/common/ChatSidebar";
 import useChatStore from "@/store/recruiter/ChatStore";
 import useRecruiterAuthStore from "@/store/recruiter/recruiterauthStore";
@@ -13,8 +14,24 @@ import { FaCheck, FaCheckDouble } from "react-icons/fa6";
 import Image from "next/image";
 import empty from "@/assests/empty.svg";
 import { IoMdClose } from "react-icons/io";
+import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSub,
+  DropdownMenuSubTrigger,
+  DropdownMenuSubContent,
+  DropdownMenuSeparator,
+} from "@/components/ui/dropdown-menu";
+import hamburicon from "@/assests/menu-veggie-burger.svg";
+import { Calendar, Plus } from "lucide-react";
+import InterviewScheduling from "@/components/recruiterDashboard/Interview/InterviewScheduling";
+import CreateRoomModal from "@/components/recruiterDashboard/Interview/InterviewCreationModal";
 
 const ChatPage = () => {
+  const router = useRouter();
   const [inputValue, setInputValue] = useState("");
   const [isSending, setIsSending] = useState(false);
   const [attachedMedia, setAttachedMedia] = useState([]);
@@ -22,13 +39,13 @@ const ChatPage = () => {
   const { user } = useAuthStore();
   const { selectedChat, messages, setSelectedChat, messageLoading } =
     useChatStore();
-
   const { sendMessage, openChat, closeChat } = useChatSocket({
     userId: recruiter?.id,
     role_type: recruiter ? "recruiter" : "job-seeker",
   });
-
   const pingAudio = useRef(null);
+  const [scheduleInterview, setSchInterview] = useState(false);
+  const [startInt, setInterviewInst] = useState(false);
 
   useEffect(() => {
     pingAudio.current = new Audio("/ping_sound_effect.mp3");
@@ -41,15 +58,11 @@ const ChatPage = () => {
   const handleSendMessage = async () => {
     if ((!inputValue.trim() && !attachedMedia?.length) || !selectedChat) return;
     setIsSending(true);
-
     let chatId = selectedChat._id;
     let clientMessageId = null;
 
-    console.log(selectedChat);
-
     try {
       const store = useChatStore.getState();
-
       // 🟢 If it's a temp chat (first ever message)
       if (chatId?.startsWith?.("temp_")) {
         const { data } = await API.post(
@@ -62,11 +75,9 @@ const ChatPage = () => {
             media: attachedMedia || [],
           }
         );
-
         if (data?.success) {
           chatId = data.chatId;
           store.setSelectedChat({ ...selectedChat, _id: chatId });
-
           // 🆕 NEW: Notification-only emit (no re-insert)
           const savedMessage = data.lastMessage; // Assume API returns full message with _id
           const notifyData = {
@@ -81,14 +92,12 @@ const ChatPage = () => {
             skipInsert: true, // Flag for backend
           };
           clientMessageId = sendMessage(notifyData); // Uses same function, but backend skips push
-
           // 🆕 Optimistic: Add using savedMessage (no clientId dupe risk)
           store.addMessage(chatId, {
             ...savedMessage,
             isMine: true,
             // status already "sent" from API
           });
-
           // Update chats, sound, clear input
           const updatedChats = store.chats.map((chat) =>
             chat._id === chatId
@@ -104,7 +113,6 @@ const ChatPage = () => {
               : chat
           );
           store.setChats(updatedChats);
-
           if (pingAudio.current) pingAudio.current.play().catch(() => {});
           setInputValue("");
           setAttachedMedia([]);
@@ -116,7 +124,6 @@ const ChatPage = () => {
           return;
         }
       }
-
       // Build message payload
       const messageData = {
         chatId,
@@ -127,10 +134,8 @@ const ChatPage = () => {
         content: inputValue.trim(),
         media: attachedMedia || [],
       };
-
       // 🟢 Emit via socket
       clientMessageId = sendMessage(messageData);
-
       // 🟢 Optimistic UI update
       store.addMessage(chatId, {
         ...messageData,
@@ -140,7 +145,6 @@ const ChatPage = () => {
         status: "sent",
         createdAt: new Date(),
       });
-
       // 🟢 Update chat list (last message only)
       const updatedChats = store.chats.map((chat) =>
         chat._id === chatId
@@ -156,17 +160,14 @@ const ChatPage = () => {
           : chat
       );
       store.setChats(updatedChats);
-
       // Ping sound
       if (pingAudio.current) {
         pingAudio.current.currentTime = 0.2;
         pingAudio.current.play().catch(() => {});
       }
-
       setInputValue("");
       setAttachedMedia([]);
     } catch (err) {
-      console.log("❌ Error sending message:", err?.message || err);
       const store = useChatStore.getState();
       if (chatId && clientMessageId) {
         store.updateMessageStatus(chatId, clientMessageId, "failed");
@@ -187,17 +188,9 @@ const ChatPage = () => {
       // Fetch only for truly empty/old chats
       store.fetchAllChatsWithMessages();
     } else {
-      console.log(
-        "⏭️ Skipping fetch: Recent or has",
-        existingMsgs.length,
-        "messages"
-      );
     }
     openChat({ chatId: selectedChat._id, viewerId: user?.id || recruiter?.id }); // Fix: Use correct ID
   }, [selectedChat?._id]);
-
-  console.log(selectedChat);
-  console.log(messages);
 
   // In ChatPage or parent useEffect([], ...):
   useEffect(() => {
@@ -215,8 +208,31 @@ const ChatPage = () => {
     }
   };
 
+  // 🔹 Close chat handler
+  const handleCloseChat = () => {
+    if (selectedChat?._id) {
+      const viewerId = user?.id || recruiter?.id;
+      closeChat({ chatId: selectedChat._id, viewerId });
+    }
+    setSelectedChat(null);
+    router.push("/recruiterDashboard/conversations");
+  };
+
   return (
     <div className="flex h-full w-full overflow-hidden">
+      {startInt && (
+        <CreateRoomModal
+          onClose={() => setInterviewInst(false)}
+          messageCreation={true}
+        />
+      )}
+
+      {scheduleInterview && (
+        <InterviewScheduling
+          applicant={selectedChat}
+          closeModal={() => setSchInterview(false)}
+        />
+      )}
       {/* Sidebar */}
       <div
         className={`${
@@ -225,7 +241,6 @@ const ChatPage = () => {
       >
         <ChatSidebar />
       </div>
-
       {/* Chat Window */}
       <div
         className={`flex flex-col flex-1 overflow-hidden ${
@@ -247,27 +262,76 @@ const ChatPage = () => {
         ) : (
           <>
             {/* Header */}
-            <div className="px-4 py-2 flex justify-between items-center border-b border-zinc-200 bg-white">
+            <div className="px-2 py-2 flex justify-between items-center border-b border-zinc-200 bg-white">
               {/* 🔹 Left side (arrow + avatar + name) */}
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-1">
                 {/* Back button */}
-                <FaArrowLeft
-                  className="cursor-pointer block md:hidden"
-                  onClick={() => {
-                    if (selectedChat?._id) {
-                      const viewerId = user?.id || recruiter?.id;
-                      closeChat({ chatId: selectedChat._id, viewerId });
-                    }
-                    setSelectedChat(null);
-                  }}
-                />
+                <div className="flex gap-1 items-center">
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button
+                        variant="none"
+                        className="flex cursor-pointer items-center gap-2 p-2 rounded-md"
+                      >
+                        <Image
+                          src={hamburicon}
+                          alt="icon"
+                          className="w-6 h-6"
+                        />
+                      </Button>
+                    </DropdownMenuTrigger>
 
+                    <DropdownMenuContent
+                      align="start"
+                      sideOffset={4}
+                      className="w-40 p-1"
+                    >
+                      {/* -------- Sub Dropdown for Schedule Meeting (Click Only) -------- */}
+                      <DropdownMenuSub>
+                        <DropdownMenuSubTrigger className="cursor-pointer data-[state=open]:bg-accent text-sm px-2 py-1.5">
+                          Schedule Interview
+                        </DropdownMenuSubTrigger>
+
+                        <DropdownMenuSubContent
+                          side="left"
+                          align="start"
+                          sideOffset={4}
+                          className="w-60 p-1"
+                        >
+                          <DropdownMenuItem
+                            onClick={() => setInterviewInst(true)}
+                            className="cursor-pointer flex items-center gap-4 text-sm px-2 py-1.5"
+                          >
+                            <Plus /> <h1>Start an Instant Interview</h1>
+                          </DropdownMenuItem>
+
+                          <DropdownMenuSeparator />
+
+                          <DropdownMenuItem
+                            onClick={() => setSchInterview(true)}
+                            className="cursor-pointer flex gap-4 items-center text-sm px-2 py-1.5"
+                          >
+                            <Calendar /> <h1>Schedule Interview</h1>
+                          </DropdownMenuItem>
+                        </DropdownMenuSubContent>
+                      </DropdownMenuSub>
+
+                      {/* ------------ Close Chat ---------------- */}
+                      <DropdownMenuItem
+                        onClick={handleCloseChat}
+                        className="cursor-pointer text-red-600 focus:text-red-700 text-sm px-2 py-1.5"
+                      >
+                        Close Chat
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
                 {/* Avatar */}
                 <div className="relative w-12 h-12">
                   <div className="w-full h-full rounded-full border border-zinc-200 overflow-hidden">
-                    {selectedChat?.avatar?.data ? (
+                    {selectedChat?.avatar?.data || selectedChat?.avatar ? (
                       <img
-                        src={selectedChat.avatar.data}
+                        src={selectedChat.avatar.data || selectedChat?.avatar}
                         alt="User Profile"
                         className="w-full h-full object-cover"
                       />
@@ -277,43 +341,36 @@ const ChatPage = () => {
                       </div>
                     )}
                   </div>
-
                   {/* ✅ Online dot outside the circle */}
-                  {selectedChat?.onlineStatus === "online" && (
+                  {(selectedChat?.onlineStatus === "online" ||
+                    selectedChat?.online === "online") && (
                     <span className="absolute -top-0.5 -right-0.5 w-3.5 h-3.5 bg-green-500 border-2 border-white rounded-full shadow-sm" />
                   )}
                 </div>
-
                 {/* Name + Status */}
                 <div className="flex flex-col">
                   <h1 className="text-lg font-semibold leading-tight">
                     {selectedChat?.name}
                   </h1>
                   <h2 className="text-sm text-gray-500">
-                    {selectedChat?.onlineStatus === "online"
+                    {selectedChat?.onlineStatus === "online" ||
+                    selectedChat?.online === "online"
                       ? "Online"
                       : `Last seen ${
-                          selectedChat?.lastActiveDisplay || "recently"
+                          selectedChat?.lastActiveDisplay ||
+                          selectedChat?.lastseen ||
+                          "recently"
                         }`}
                   </h2>
                 </div>
               </div>
-
               {/* 🔹 Right side (close button) */}
               <IoMdClose
                 className="cursor-pointer text-gray-600 text-2xl hover:text-red-500"
-                onClick={() => {
-                  if (selectedChat?._id) {
-                    const viewerId = user?.id || recruiter?.id;
-                    closeChat({ chatId: selectedChat._id, viewerId });
-                  }
-                  setSelectedChat(null);
-                }}
+                onClick={handleCloseChat}
               />
             </div>
-
             {/* Messages Section */}
-
             <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-gray-50">
               {(() => {
                 if (messageLoading) {
@@ -335,7 +392,6 @@ const ChatPage = () => {
                     </div>
                   );
                 }
-
                 if (chatMessages.length === 0) {
                   return (
                     <div className="text-center text-gray-400 mt-10 text-sm">
@@ -343,21 +399,17 @@ const ChatPage = () => {
                     </div>
                   );
                 }
-
                 // 🧠 Helper functions
                 const isSameDay = (d1, d2) =>
                   d1.getFullYear() === d2.getFullYear() &&
                   d1.getMonth() === d2.getMonth() &&
                   d1.getDate() === d2.getDate();
-
                 const formatDayLabel = (date) => {
                   const now = new Date();
                   if (isSameDay(date, now)) return "Today";
-
                   const yesterday = new Date();
                   yesterday.setDate(now.getDate() - 1);
                   if (isSameDay(date, yesterday)) return "Yesterday";
-
                   return date.toLocaleDateString("en-US", {
                     day: "numeric",
                     month: "short",
@@ -367,20 +419,15 @@ const ChatPage = () => {
                         : "numeric",
                   });
                 };
-
                 let lastDate = null;
-
                 return chatMessages.map((msg, idx) => {
                   const currentUserId = recruiter?.id || user?.id;
                   const isMine =
                     msg.isMine || msg.senderId?._id === currentUserId;
-
                   const msgDate = new Date(msg.createdAt);
                   const showDateSeparator =
                     !lastDate || !isSameDay(msgDate, new Date(lastDate));
-
                   if (showDateSeparator) lastDate = msgDate;
-
                   const getTickIcon = () => {
                     if (!isMine) return null;
                     switch (msg.status) {
@@ -408,7 +455,6 @@ const ChatPage = () => {
                         );
                     }
                   };
-
                   return (
                     <React.Fragment key={idx}>
                       {showDateSeparator && (
@@ -418,7 +464,6 @@ const ChatPage = () => {
                           </span>
                         </div>
                       )}
-
                       <div
                         className={`p-3 rounded-lg shadow-sm max-w-xs break-words ${
                           isMine
@@ -444,7 +489,6 @@ const ChatPage = () => {
                 });
               })()}
             </div>
-
             {/* Input Section */}
             <div className="px-4 py-2 border-t bg-white flex gap-2 items-center">
               <input
@@ -456,7 +500,6 @@ const ChatPage = () => {
                 onKeyDown={handleKeyDown}
                 disabled={isSending}
               />
-
               <button
                 onClick={handleSendMessage}
                 disabled={!inputValue.trim() || isSending}

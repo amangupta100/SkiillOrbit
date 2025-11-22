@@ -1,611 +1,483 @@
 "use client";
-import { Input } from "@/components/ui/input";
-import SearchTypingAnimation from "@/components/common/SearchTypingAnimation";
-import { useEffect, useState } from "react";
-import { Button } from "@/components/ui/button";
-import {
-  Filter,
-  ChevronDown,
-  Calendar,
-  User,
-  SortAsc,
-  CheckSquare,
-  Square,
-  X,
-  MoreVertical,
-} from "lucide-react";
+
+import JobDetailsSkeleton from "@/components/common/Skeleton/JobDetails";
 import API from "@/utils/interceptor";
-import { toast } from "sonner";
-import { useParams, useRouter, useSearchParams } from "next/navigation";
 import Image from "next/image";
-import ApplicantSkeleton from "@/components/common/Skeleton/AllApplicants";
+import { useParams } from "next/navigation";
+import React, { useEffect, useState } from "react";
+import { toast } from "sonner";
 import {
-  DropdownMenu,
-  DropdownMenuTrigger,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-} from "@/components/ui/dropdown-menu";
-import ButtonLoader from "@/utils/Loader";
-import API2 from "@/utils/interceptor2";
-import FilterApplicantModal from "@/components/recruiterDashboard/ManagePosting/FilterApplicantModal";
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import money from "@/assests/badge-indian-rupee.svg";
+import duration from "@/assests/clock.svg";
+import Clock from "@/assests/clock.svg";
+import { Info, Share2 } from "lucide-react";
 
-export default function Page() {
-  const [search, setSearch] = useState("");
-  const [isMobile, setIsMobile] = useState(false);
+const OpportunityPage = () => {
+  const [opportunity, setOpportunity] = useState(null);
+  const [loading, setLoading] = useState(true); // ✅ show skeleton immediately
   const { id } = useParams();
-  const [applicants, setApplicants] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [sortType, setSortType] = useState("recent");
-  const [actionLoading, setActionLoading] = useState({
-    ats: {
-      loading: false,
-      text: "",
-    },
-    search: false,
-    filter: false,
-  });
-  const [opporDet, setOpporDet] = useState(null);
-  const [isSelectionMode, setIsSelectionMode] = useState(false);
-  const [selectedApplicants, setSelectedApplicants] = useState(new Set());
-  const router = useRouter();
-  const searchParams = useSearchParams();
-  const [filterModal, setFilterModal] = useState(false);
+  const [open, setOpen] = useState(false);
 
-  // ✅ Check for mobile screen size
   useEffect(() => {
-    const mediaQuery = window.matchMedia("(max-width: 767px)");
-    setIsMobile(mediaQuery.matches);
-
-    const handler = (e) => setIsMobile(e.matches);
-    mediaQuery.addEventListener("change", handler);
-    return () => mediaQuery.removeEventListener("change", handler);
-  }, []);
-
-  // ✅ Initialize sortType from URL params
-  useEffect(() => {
-    const urlSortType = searchParams.get("sort_by") || "recent";
-    setSortType(urlSortType);
-  }, [searchParams]);
-
-  // ✅ Update URL params when sortType changes
-  useEffect(() => {
-    const newSearchParams = new URLSearchParams(searchParams.toString());
-    if (sortType) {
-      newSearchParams.set("sort_by", sortType);
-    } else {
-      newSearchParams.delete("sort_by");
-    }
-    router.replace(`?${newSearchParams.toString()}`);
-  }, [sortType, searchParams, router]);
-
-  // ✅ Fetch applicants
-  useEffect(() => {
-    const fetchApplicants = async () => {
+    const fetchDetails = async () => {
       try {
-        setLoading(true);
         const res = await API.get(
-          `/recruiter/managePosting/getallApplicants/${id}`
+          `/common/opportunity/getOpportunityDetail/${id}`
         );
-        if (res.data.success) {
-          setApplicants(res.data.applicants);
-
-          const resp2 = await API.get(
-            `/common/opportunity/getOpportunityDetail/${id}`
-          );
-          setOpporDet(resp2.data.data);
+        if (res.data?.success) {
+          setOpportunity(res.data.data);
         } else {
-          toast.warning(res.data.message || "Failed to fetch applicants");
+          toast.warning(res.data.message || "Failed to load opportunity");
         }
-      } catch (error) {
-        toast.error(error.response?.data?.message || "Something went wrong");
+      } catch (err) {
+        toast.error(err.response?.data?.message || err.message);
       } finally {
         setLoading(false);
       }
     };
 
-    if (id) fetchApplicants();
+    if (id) fetchDetails();
   }, [id]);
 
-  // ✅ Format appliedAt date
-  function formatAppliedAt(dateString) {
-    const date = new Date(dateString);
-    return date.toLocaleString("en-GB", {
-      day: "2-digit",
-      month: "2-digit",
-      year: "2-digit",
-      hour: "2-digit",
-      minute: "2-digit",
-      hour12: true,
-    });
+  const handleTooltipToggle = () => setOpen((prev) => !prev);
+  const monthsMapper = {
+    "01": "January",
+    "02": "February",
+    "03": "March",
+    "04": "April",
+    "05": "May",
+    "06": "June",
+    "07": "July",
+    "08": "August",
+    "09": "September",
+    10: "October",
+    11: "November",
+    12: "December",
+  };
+
+  const formattedDate = (createdAt) => {
+    const createdDate = new Date(createdAt);
+    const now = new Date();
+    const diffMs = now - createdDate; // Difference in milliseconds
+
+    const diffInSeconds = Math.floor(diffMs / 1000);
+    const diffInMinutes = Math.floor(diffInSeconds / 60);
+    const diffInHours = Math.floor(diffInMinutes / 60);
+    const diffInDays = Math.floor(diffInHours / 24);
+    const diffInWeeks = Math.floor(diffInDays / 7);
+
+    if (diffInHours < 1) {
+      return `${diffInMinutes}m ago`;
+    } else if (diffInHours < 24) {
+      return `${diffInHours}h ago`;
+    } else if (diffInDays < 7) {
+      return `${diffInDays}d${diffInDays === 1 ? "w" : ""} ago`;
+    } else if (diffInWeeks < 4) {
+      return `${diffInWeeks}w${diffInWeeks === 1 ? "w" : ""} ago`;
+    } else {
+      return createdDate.toLocaleDateString(); // fallback to a date if older than 4 weeks
+    }
+  };
+
+  const formatStipend = (amount) => {
+    if (amount == null) return "";
+    const num = parseInt(amount, 10);
+    if (isNaN(num) || num <= 0) return "";
+    return num / 1000; // scale to thousands
+  };
+
+  function formatPreferredJoiningDate(dateString) {
+    const [day, month, year] = dateString.split("-");
+    if (dateString.includes("Immediate")) {
+      return "Immediate Joiner";
+    }
+    return `Apply by  ${day} ${monthsMapper[month]} ${year}`;
   }
 
-  // ✅ Clear filters and sort
-  const handleClear = () => {
-    setSearch("");
-    setSortType("recent");
-    // If filters were implemented, reset them here
-    toast.success("Filters and sort cleared");
+  const DescriptionSections = ({ description }) => {
+    if (!description) return <p className="mb-6">No description available</p>;
+
+    // Split by h2 headings
+    const sections = description.split(/<h2><strong>(.*?)<\/strong><\/h2>/);
+
+    return (
+      <div className="space-y-6">
+        {sections.map((section, index) => {
+          // Odd indexes = heading texts, even indexes = content
+          if (index % 2 === 1) {
+            const heading = sections[index];
+            const content = sections[index + 1]?.trim();
+
+            // Remove HTML tags and whitespace to check if content is empty
+            const plainText = content
+              ?.replace(/<[^>]*>/g, "")
+              .replace(/&nbsp;/g, "")
+              .trim();
+
+            if (!plainText) {
+              return null; // 🚫 skip rendering if no meaningful content
+            }
+
+            return (
+              <div key={index}>
+                <h2 className="text-xl font-bold mb-3">
+                  {heading.replace(/^#/, "")}
+                </h2>
+                <div
+                  className="prose"
+                  dangerouslySetInnerHTML={{ __html: content }}
+                />
+              </div>
+            );
+          }
+          return null;
+        })}
+      </div>
+    );
   };
 
-  // ✅ Toggle selection mode
-  const toggleSelectionMode = () => {
-    setIsSelectionMode((prev) => !prev);
-    if (!isSelectionMode) {
-      // Entering mode, reset selections
-      setSelectedApplicants(new Set());
-    } else {
-      // Exiting mode, but don't reset selections if applying
-    }
-  };
+  console.log(opportunity);
 
-  // ✅ Toggle individual applicant selection
-  const toggleApplicant = (applicantId) => {
-    setSelectedApplicants((prev) => {
-      const newSet = new Set(prev);
-      if (newSet.has(applicantId)) {
-        newSet.delete(applicantId);
-      } else {
-        newSet.add(applicantId);
-      }
-      return newSet;
-    });
-  };
-
-  // ✅ Get selected count
-  const selectedCount = selectedApplicants.size;
-
-  // ✅ Sorting logic
-  const sortedApplicants = [...applicants].sort((a, b) => {
-    if (sortType === "name-asc") {
-      return a.user?.name?.localeCompare(b.user?.name);
-    } else if (sortType === "name-desc") {
-      return b.user?.name?.localeCompare(a.user?.name);
-    } else if (sortType === "recent") {
-      return new Date(b.appliedAt) - new Date(a.appliedAt);
-    } else if (sortType === "oldest") {
-      return new Date(a.appliedAt) - new Date(b.appliedAt);
-    }
-    return 0;
-  });
-
-  const handleATSScores = async (applyToAll = false) => {
-    try {
-      if (!opporDet) {
-        toast.warning("Opportunity details not loaded");
-        return;
-      }
-
-      // Determine which applicants to process
-      let applicantIds = [];
-      if (applyToAll) {
-        applicantIds = applicants.map((a) => a._id);
-      } else {
-        if (selectedCount === 0) {
-          toast.warning("Please select at least one applicant");
-          return;
-        }
-        applicantIds = Array.from(selectedApplicants);
-      }
-
-      // Step 1: Fetch resumes for selected applicants
-      setActionLoading((prev) => ({
-        ...prev,
-        ats: { loading: true, text: "Fetching resumes..." },
-      }));
-
-      const resp = await API.post(`/recruiter/ats/getResumes/${id}`, {
-        applicantIds,
-      });
-
-      if (!resp.data.success) {
-        toast.warning(resp.data.message || "Failed to fetch resumes");
-        return;
-      }
-
-      const rawUsers = resp.data.applicants;
-      if (!rawUsers.length) {
-        toast.warning("No resumes found for selected applicants");
-        return;
-      }
-
-      // Step 2: Prepare job details for scoring
-      setActionLoading((prev) => ({
-        ...prev,
-        ats: { loading: true, text: "Scoring resumes..." },
-      }));
-
-      const isJob = opporDet.nop !== undefined;
-      const jobDetails = {
-        job_title: opporDet.role || "",
-        job_description: isJob
-          ? opporDet.description || ""
-          : opporDet.about || "",
-        requirements: isJob ? [opporDet.experience || ""] : [],
-        required_skills: opporDet.requiredSkills || [],
-        optional_skills: opporDet.optionalSkills || [],
-        required_education: "",
-        required_experience: isJob ? opporDet.experience || "" : "",
-      };
-
-      // Step 3: Prepare all applicant data for scoring
-      const applicantsPayload = rawUsers.map((a) => ({
-        id: a._id, // ✅ your backend expects this
-        base64_data: a.resume?.data || "",
-        file_type: a.resume?.contentType === "application/pdf" ? "pdf" : "docx",
-      }));
-
-      const scoreResp = await API2.post("/score_resumes", {
-        job_details: jobDetails,
-        resumes: applicantsPayload, // ✅ correct key name
-        opporType: resp.data.opporType,
-      });
-
-      if (!scoreResp.data.success) {
-        toast.error("Failed to score resumes");
-        return;
-      }
-
-      const scores = scoreResp.data.scores || [];
-
-      // Step 5: Update applicants state with received scores
-      console.log(scoreResp);
-
-      toast.success(`ATS scoring completed for ${scores.length} applicant(s)`);
-
-      // Step 6: Reset selection mode
-      if (!applyToAll) {
-        setIsSelectionMode(false);
-        setSelectedApplicants(new Set());
-      }
-    } catch (err) {
-      console.error("ATS scoring error:", err);
-      toast.error(err.response?.data?.message || err.message);
-    } finally {
-      setActionLoading((prev) => ({
-        ...prev,
-        ats: { loading: false, text: "" },
-      }));
-    }
-  };
-
-  const handleApplyToAll = () => {
-    handleATSScores(true);
-  };
-
-  const handleApplyToSelected = () => {
-    if (isSelectionMode) {
-      handleATSScores(false);
-    } else {
-      toggleSelectionMode();
-    }
-  };
-
-  const handleCancelSelection = () => {
-    setIsSelectionMode(false);
-    setSelectedApplicants(new Set());
-  };
+  console.log(DescriptionSections)
 
   return (
-    <div className="md:p-6 p-4 space-y-6">
-      {filterModal && (
-        <FilterApplicantModal
-          isOpen={filterModal}
-          closeModal={() => setFilterModal(false)}
-        />
-      )}
-      <h1 className="text-lg font-semibold">All Applicants</h1>
-
-      {/* 🔹 Top Controls */}
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-        {/* 🔸 Search Input */}
-        <div className="relative w-full md:max-w-md">
-          <Input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder=""
-            className="w-full pr-3 pl-10 border border-gray-300 text-base"
-          />
-          {search === "" && (
-            <span className="absolute text-base left-4 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none">
-              <SearchTypingAnimation
-                words={[
-                  "Search by applicant's name",
-                  "Search by benchmarkScore",
-                  "Search by appliedAt date",
-                ]}
-                typingSpeed={100}
-                deletingSpeed={80}
-                pauseTime={1500}
-              />
-            </span>
-          )}
-        </div>
-
-        {/* 🔸 Buttons */}
-        <div className="flex gap-3 flex-wrap items-center">
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" className="gap-2">
-                <SortAsc size={16} />
-                Sort By <ChevronDown size={16} />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent
-              align="end"
-              side={isMobile ? "bottom" : "bottom"}
-              className="w-44"
-            >
-              <DropdownMenuLabel>Sort Applicants</DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem
-                onClick={() => setSortType("recent")}
-                className={
-                  sortType === "recent" ? "font-semibold text-blue-600" : ""
-                }
-              >
-                <Calendar className="mr-2 h-4 w-4" />
-                Most Recent
-                {sortType === "recent" && (
-                  <CheckSquare className="ml-auto h-4 w-4 text-blue-600" />
-                )}
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                onClick={() => setSortType("oldest")}
-                className={
-                  sortType === "oldest" ? "font-semibold text-blue-600" : ""
-                }
-              >
-                <Calendar className="mr-2 h-4 w-4" />
-                Oldest First
-                {sortType === "oldest" && (
-                  <CheckSquare className="ml-auto h-4 w-4 text-blue-600" />
-                )}
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem
-                onClick={() => setSortType("name-asc")}
-                className={
-                  sortType === "name-asc" ? "font-semibold text-blue-600" : ""
-                }
-              >
-                <User className="mr-2 h-4 w-4" />
-                Name (A–Z)
-                {sortType === "name-asc" && (
-                  <CheckSquare className="ml-auto h-4 w-4 text-blue-600" />
-                )}
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                onClick={() => setSortType("name-desc")}
-                className={
-                  sortType === "name-desc" ? "font-semibold text-blue-600" : ""
-                }
-              >
-                <User className="mr-2 h-4 w-4" />
-                Name (Z–A)
-                {sortType === "name-desc" && (
-                  <CheckSquare className="ml-auto h-4 w-4 text-blue-600" />
-                )}
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem
-                onClick={sortType !== "recent" ? handleClear : undefined}
-                disabled={sortType === "recent"}
-                className={
-                  sortType !== "recent"
-                    ? "font-semibold text-blue-600 cursor-pointer"
-                    : "text-gray-400 cursor-not-allowed"
-                }
-              >
-                <X className="mr-2 h-4 w-4" />
-                Clear
-                {sortType !== "recent" && (
-                  <CheckSquare className="ml-auto h-4 w-4 text-blue-600" />
-                )}
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-
-          <Button
-            onClick={() => setFilterModal(true)}
-            variant="outline"
-            className="gap-2 cursor-pointer"
-          >
-            <Filter size={16} />
-            Filter
-          </Button>
-        </div>
-      </div>
-
-      {/* 🔹 Applicants List or Skeleton */}
+    <div className="p-3">
       {loading ? (
-        <ApplicantSkeleton count={6} />
-      ) : (
-        <div className="border-[1.6px] rounded-lg bg-zinc-100 border-zinc-200 ">
-          <div className="bg-white rounded-lg py-2 mb-4 px-4 border-b-[1.6px] border-zinc-200 flex items-center justify-between">
-            <h1 className="font-semibold">All Participants</h1>
-            <div className="flex items-center gap-2">
-              {isSelectionMode && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleCancelSelection}
-                  className="border-[1.6px] border-zinc-200"
+        <JobDetailsSkeleton />
+      ) : opportunity ? (
+        <>
+          <h1 className="text-lg font-semibold">{opportunity?.type} Details</h1>
+
+          <div className="relative border-zinc-200 border-[1.6px] p-2 rounded-md mt-4">
+            <div className="absolute -top-[18px] right-5 flex space-x-3">
+              <span className="text-sm bg-gray-100 px-3 py-1 font-medium rounded-full border-[1.5px] border-zinc-300">
+                {opportunity.location}
+              </span>
+              <span className="text-sm bg-gray-100 px-3 py-1 font-medium rounded-full border-[1.5px] border-zinc-300">
+                {opportunity.type}
+              </span>
+            </div>
+
+            {/* opportunity Title */}
+            <div className="flex items-start gap-4 mt-2 mb-2">
+              {" "}
+              {/* Changed to items-start */}
+              <Image
+                src={opportunity.company.logo.data}
+                alt={opportunity.company.name}
+                width={48}
+                height={48}
+                className="h-12 w-12 object-contain rounded-full border border-gray-200"
+              />
+              <div className="flex-1 flex justify-between">
+                {" "}
+                {/* Added flex-1 and removed bg colors */}
+                <div className="flex flex-col">
+                  {" "}
+                  {/* Changed to column layout */}
+                  <div className="flex items-center gap-2">
+                    {" "}
+                    {/* Added gap for spacing */}
+                    <h2 className="text-lg font-semibold">
+                      {opportunity?.title || opportunity?.role}
+                    </h2>
+                  </div>
+                  <div className="flex items-center">
+                    <p className="text-base text-gray-400">
+                      {opportunity?.company.name}
+                    </p>
+                    <p className="text-gray-400 text-lg mx-1">|</p>
+                    <p className="text-base text-gray-400">
+                      {opportunity?.company.headquarters}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Skills */}
+            <div className="flex flex-wrap gap-2 my-7">
+              {opportunity.requiredSkills.map((skill, indx) => (
+                <span
+                  key={indx}
+                  className="bg-gray-100 text-gray-600 text-xs px-2 py-1 rounded-full"
                 >
-                  Cancel
-                </Button>
-              )}
-              <DropdownMenu>
-                <DropdownMenuTrigger
-                  asChild
-                  disabled={actionLoading.ats.loading}
+                  {skill}
+                </span>
+              ))}
+            </div>
+
+            <div className="flex flex-wrap justify-between gap-4 text-sm text-gray-600 mb-4">
+              <div>
+                <div className=" text-gray-400 flex items-center gap-1 text-[15px] ">
+                  <Image src={money} alt="Money" width={20} height={20} />{" "}
+                  {opportunity.type === "Internship"
+                    ? "Stipend per month"
+                    : "Job Offer"}{" "}
+                </div>
+                <div className="font-medium">
+                  ₹{" "}
+                  {opportunity.type === "Internship"
+                    ? `${formatStipend(
+                        opportunity.stipend.min
+                      )}k - ${formatStipend(opportunity.stipend.max)}k`
+                    : `${opportunity.salaryRange.min}LPA - ${opportunity.salaryRange.max}LPA`}
+                </div>
+              </div>
+              <div
+                className={`${
+                  opportunity.type == "Internship" ? null : "hidden"
+                }`}
+              >
+                <div
+                  className={`text-gray-400 flex items-center gap-1 text-[15px]`}
                 >
-                  <Button
-                    disabled={actionLoading.ats.loading}
-                    className="border-[1.6px] bg-zinc-600/90 border-zinc-200 gap-2"
-                  >
-                    {actionLoading.ats.loading ? (
-                      <>
-                        <ButtonLoader color="white" />
-                        {actionLoading.ats.text || "Getting resumes..."}
-                      </>
-                    ) : isSelectionMode ? (
-                      `Apply Selected (${selectedCount})`
-                    ) : (
-                      <>
-                        Apply ATS <ChevronDown size={16} />
-                      </>
-                    )}
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuItem
-                    onClick={handleApplyToAll}
-                    disabled={actionLoading.ats.loading || isSelectionMode}
-                  >
-                    Apply To All
-                  </DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem
-                    onClick={handleApplyToSelected}
-                    disabled={actionLoading.ats.loading}
-                  >
-                    {isSelectionMode ? "Apply Selected" : "Select & Apply"}
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
+                  <Image src={duration} alt="Duration" width={18} height={18} />{" "}
+                  Duration
+                </div>
+                <div className="font-medium">
+                  {" "}
+                  {opportunity.duration} Months{" "}
+                </div>
+              </div>
+
+              <div>
+                <div
+                  className={`text-gray-400 flex items-center gap-1 text-[15px]`}
+                >
+                  #Openings
+                </div>
+                <div className="font-medium">
+                  {" "}
+                  {opportunity?.nop || opportunity?.positionsAvailable}{" "}
+                </div>
+              </div>
+
+              <div className={`${opportunity.type == "Job" ? null : "hidden"}`}>
+                <div
+                  className={`text-gray-400 flex items-center gap-1 text-[15px]`}
+                >
+                  Experience
+                </div>
+                <div className="font-medium">
+                  {" "}
+                  {opportunity?.experience} years{" "}
+                </div>
+              </div>
+
+              <div>
+                <div className="text-gray-400 flex items-center gap-1 text-[15px]">
+                  Office Location
+                </div>
+                <div className="font-medium">
+                  {" "}
+                  {opportunity.company.headquarters}{" "}
+                </div>
+              </div>
+            </div>
+
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <div className="cursor-pointer inline-block">
+                    <h1 className="text-lg font-bold">
+                      Benchmark Score: {opportunity?.benchmarkScore}
+                    </h1>
+                  </div>
+                </TooltipTrigger>
+                <TooltipContent side="right">
+                  <p>
+                    <p>
+                      This benchmark score is used to filter out the applicants
+                      who are below the {opportunity?.benchmarkScore} by taking
+                      the average of required skills.
+                    </p>
+                  </p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+
+            {/* Actions */}
+            <div className="mt-3">
+              <div className="flex flex-col lg:flex-row md:items-center md:justify-between gap-3">
+                {/* Apply by / Posted part */}
+                <div className="flex justify-between w-full md:w-auto text-blue-600 font-medium text-sm md:text-base relative">
+                  {opportunity.preferredJoiningDate
+                    .toLowerCase()
+                    .includes("immediate") ? (
+                    <div className="flex items-center gap-2 w-full relative">
+                      {/* Info icon top-right */}
+                      <TooltipProvider>
+                        <Tooltip open={open} onOpenChange={setOpen}>
+                          <TooltipTrigger asChild>
+                            <button
+                              onClick={handleTooltipToggle}
+                              className=" text-blue-600 hover:text-blue-800 cursor-pointer"
+                            ></button>
+                          </TooltipTrigger>
+                          <TooltipContent
+                            side="top"
+                            align="start"
+                            className="max-w-xs text-sm text-gray-700 bg-white border shadow-md"
+                          >
+                            This opportunity prefers candidates who can join
+                            immediately or within a short notice period (0–30
+                            days).
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                      <span>Immediate Joiner Preferred</span>
+                      <span className="font-bold mx-1 md:inline-block hidden">
+                        •
+                      </span>
+                      <span className="hidden md:inline-block">
+                        Posted {formattedDate(opportunity.createdAt)}
+                      </span>
+                      <span className="md:hidden visible bg-blue-50 px-3 py-[2px] rounded-full flex items-center gap-2">
+                        <Image src={Clock} width={15} height={15} alt="" />{" "}
+                        Posted {formattedDate(opportunity.createdAt)}
+                      </span>
+                    </div>
+                  ) : (
+                    <>
+                      <span>
+                        {" "}
+                        {formatPreferredJoiningDate(
+                          opportunity.preferredJoiningDate
+                        )}
+                      </span>
+                      <span className="font-bold mx-1 md:inline-block hidden">
+                        •
+                      </span>
+                      <span className="hidden md:inline-block">
+                        Posted {formattedDate(opportunity.createdAt)}
+                      </span>
+                      <span className="md:hidden visible bg-blue-50 px-3 py-[2px] rounded-full flex items-center gap-2">
+                        <Image src={Clock} width={15} height={15} alt="" />{" "}
+                        Posted {formattedDate(opportunity.createdAt)}
+                      </span>
+                    </>
+                  )}
+                </div>
+
+                {/* Buttons */}
+                <div className="flex justify-between gap-2 w-auto">
+                  <div className="flex gap-2 items-center md:hidden">
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      strokeWidth="1.5"
+                      stroke="currentColor"
+                      className="w-5 h-5 text-gray-500 cursor-pointer mt-0.5" // Adjusted size and added small top margin
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="M17.593 3.322c1.1.128 1.907 1.077 1.907 2.185V21L12 17.25 4.5 21V5.507c0-1.108.806-2.057 1.907-2.185a48.507 48.507 0 0 1 11.186 0Z"
+                      />
+                    </svg>
+
+                    <Share2 className="text-gray-500 mt-1 w-[23px] h-[23px] " />
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
 
-          <div className="flex flex-wrap mt-10 gap-4">
-            {sortedApplicants.length > 0 ? (
-              sortedApplicants
-                .filter((appl) =>
-                  appl.user?.name
-                    ?.toLowerCase()
-                    .includes(search.toLowerCase().trim())
-                )
-                .map((appl) => (
-                  <div
-                    key={appl._id}
-                    onClick={() =>
-                      router.push(
-                        `/recruiterDashboard/managePosting&applicants/${id}/aplId=${appl.user._id}`
-                      )
-                    }
-                    className="border-[1.6px] cursor-pointer md:max-w-72 w-full flex items-center rounded-lg border-zinc-200 bg-white p-3 relative"
-                  >
-                    {/* Three-dot dropdown (top-right corner) */}
-                    <div className="absolute border-[1.6px] border-zinc-200 rounded-full bg-white -top-4 cursor-pointer right-2 z-20">
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <button
-                            onClick={(e) => e.stopPropagation()} // prevent card click
-                            className="p-1 rounded-full hover:bg-zinc-100"
-                          >
-                            <MoreVertical className="h-4 w-4 text-zinc-600" />
-                          </button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="w-40">
-                          <DropdownMenuItem
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              router.push(
-                                `/recruiterDashboard/managePosting&applicants/${id}/aplId=${appl.user._id}`
-                              );
-                            }}
-                          >
-                            View Profile
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              // TODO: Add shortlist logic here
-                            }}
-                          >
-                            Shortlist Applicant
-                          </DropdownMenuItem>
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mt-6">
+            <div className="lg:col-span-2 space-y-6">
+              {/*left section - Description Card */}
 
-                          <DropdownMenuItem
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              // TODO: Add shortlist logic here
-                            }}
-                          >
-                            Send Message
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              // TODO: Add reject logic here
-                            }}
-                          >
-                            Reject Applicant
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </div>
+              <div className="w-full relative py-5 px-4 rounded-lg border-[1.6px] border-zinc-200 bg-white">
+                <DescriptionSections
+                  description={opportunity?.description || opportunity?.about}
+                />
+              </div>
+            </div>
 
-                    {/* Selection Checkbox (if selection mode active) */}
-                    {isSelectionMode && (
-                      <div className="absolute left-3 top-1/2 -translate-y-1/2 z-10">
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            toggleApplicant(appl._id);
-                          }}
-                          className="p-1 rounded hover:bg-gray-100"
+            {/* RIGHT SIDEBAR */}
+            <div className="space-y-6">
+              {/* Skills - Mandatory */}
+              <div className="w-full py-5 px-4 rounded-lg border-[1.6px] border-zinc-200 bg-white">
+                <h1 className="text-lg">Skills - Mandatory</h1>
+                <div className="flex flex-wrap gap-2">
+                  {opportunity?.requiredSkills.map((skill, indx) => (
+                    <span
+                      key={indx}
+                      className="bg-gray-100 text-gray-600 text-xs px-2 py-1 rounded-full"
+                    >
+                      {skill}
+                    </span>
+                  ))}
+                </div>
+
+                {/* Skills - Optional (if available) */}
+                {opportunity?.optionalSkills?.length > 0 && (
+                  <div className="mt-5">
+                    Skills - Optional
+                    <div className="flex flex-wrap gap-2">
+                      {opportunity.optionalSkills.map((skill, indx) => (
+                        <span
+                          key={indx}
+                          className="bg-gray-100 text-gray-600 text-xs px-2 py-1 rounded-full"
                         >
-                          {selectedApplicants.has(appl._id) ? (
-                            <CheckSquare size={20} className="text-green-600" />
-                          ) : (
-                            <Square size={20} className="text-gray-400" />
-                          )}
-                        </button>
-                      </div>
-                    )}
-
-                    {/* Applicant Image */}
-                    <div
-                      className={`w-14 overflow-hidden relative border-[1.6px] border-zinc-200 h-14 rounded-full ${
-                        isSelectionMode ? "ml-8" : ""
-                      }`}
-                    >
-                      <Image
-                        src={
-                          appl.user?.image?.data ||
-                          "/default-profile.png" /* fallback */
-                        }
-                        className="object-cover"
-                        sizes="64px"
-                        fill
-                        alt="Applicant Profile"
-                      />
-                    </div>
-
-                    {/* Applicant Info */}
-                    <div
-                      className={`flex flex-col ml-3 ${
-                        isSelectionMode ? "ml-2" : ""
-                      }`}
-                    >
-                      <h1 className="font-medium">{appl.user?.name}</h1>
-                      <h1 className="text-sm text-zinc-600">
-                        <span className="font-semibold">Applied At:</span>{" "}
-                        {formatAppliedAt(appl.appliedAt)}
-                      </h1>
+                          {skill}
+                        </span>
+                      ))}
                     </div>
                   </div>
-                ))
-            ) : (
-              <p className="text-center text-gray-500 w-full py-8">
-                No applicants found.
-              </p>
-            )}
+                )}
+
+                {opportunity?.preferences &&
+                  Object.keys(opportunity?.preferences).length > 0 && (
+                    <div className="mt-5">
+                      Preferences
+                      <ul className="space-y-2 text-sm text-gray-700 list-disc pl-5">
+                        {Object.entries(opportunity?.preferences).map(
+                          ([key, value]) =>
+                            value !== "" &&
+                            value !== null &&
+                            value !== undefined ? (
+                              <li key={key}>
+                                <strong className="text-base">{key}:</strong>{" "}
+                                {value}
+                              </li>
+                            ) : null
+                        )}
+                      </ul>
+                    </div>
+                  )}
+              </div>
+
+              {/* Benefits Section (if available) */}
+              {(opportunity?.extBenefits?.length > 0 ||
+                opportunity?.benefits?.length > 0) && (
+                <div className="w-full py-5 px-4 rounded-lg border-[1.6px] border-zinc-200 bg-white">
+                  <h1 className="text-lg mb-3">Perks & Benefits</h1>
+                  <ul className="list-disc pl-5 text-sm text-gray-700 space-y-2">
+                    {opportunity?.extBenefits?.map((benefit, i) => (
+                      <li key={`ext-${i}`}>{benefit}</li>
+                    ))}
+                    {opportunity?.benefits?.map((benefit, i) => (
+                      <li key={`benefit-${i}`}>{benefit}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
           </div>
-        </div>
+        </>
+      ) : (
+        <div>No data found</div>
       )}
     </div>
   );
-}
+};
+
+export default OpportunityPage;

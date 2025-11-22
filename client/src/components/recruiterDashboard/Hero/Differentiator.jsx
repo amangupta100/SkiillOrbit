@@ -6,41 +6,41 @@ export default function Differentiator() {
   const comparisons = [
     {
       title: "Test Before Apply",
-      skillOrbit:
+      SkillsOrbit:
         "Required for job — ensures candidate quality upfront. Once give the test for required skill set and it's test score is valid for 2weeks or may retake a skill test",
       others:
         "Absent — recruiters must filter manually by reading resume which is time-consuming and increases recruiter's effort by 50%.",
     },
     {
       title: "Built-in Interview Tools",
-      skillOrbit:
+      SkillsOrbit:
         "Live coding + video + chat in one place. and in a most secured anti-cheating environment",
       others:
         "Requires external tools like Zoom, Google Meet and cheating is possible as there are many AI tools which can output the interviewer's question in real-time.",
     },
     {
       title: "Cheat-Proof Testing",
-      skillOrbit: "Tab detection, copy-blocking, optional webcam proctoring.",
+      SkillsOrbit: "Tab detection, copy-blocking, optional webcam proctoring.",
       others: "Basic MCQs — often easy to bypass.",
     },
     {
       title: "Hiring Efficiency",
-      skillOrbit: "80% less screening time, 3x faster shortlist.",
+      SkillsOrbit: "80% less screening time, 3x faster shortlist.",
       others: "Slow funnel, recruiter burden high.",
     },
     {
       title: "Faster Hiring Cycle",
-      skillOrbit: "Save 80% of manual effort. Hire in days, not weeks",
+      SkillsOrbit: "Save 80% of manual effort. Hire in days, not weeks",
       others: "300+ resumes → 20-25 interviews → 1 hire — pure time drain",
     },
     {
       title: "Score-Based Filtering",
-      skillOrbit: "Score-Based Filtering",
+      SkillsOrbit: "Score-Based Filtering",
       others: "No such filters — manual shortlisting",
     },
     {
       title: "ATS Resume Filtering",
-      skillOrbit: "Auto-sort resumes with >90% ATS score",
+      SkillsOrbit: "Auto-sort resumes with >90% ATS score",
       others: "Recruiters have to manually scan resumes",
     },
   ];
@@ -70,7 +70,7 @@ export default function Differentiator() {
                   Feature
                 </th>
                 <th className="p-4 border-b border-r border-white font-bold text-center">
-                  SkillOrbit
+                  SkillsOrbit
                 </th>
                 <th className="p-4 border-b border-white font-bold text-center">
                   Other Platforms
@@ -87,7 +87,7 @@ export default function Differentiator() {
                     {item.title}
                   </td>
                   <td className="p-4 border-b border-r border-white text-center align-middle whitespace-normal break-words">
-                    {item.skillOrbit}
+                    {item.SkillsOrbit}
                   </td>
                   <td className="p-4 border-b border-white text-center align-middle whitespace-normal break-words">
                     {item.others}

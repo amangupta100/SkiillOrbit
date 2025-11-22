@@ -409,10 +409,7 @@ const page = () => {
 
             <div className="inline-flex flex-wrap max-w-6xl gap-x-2">
               {userDet?.skills.slice(0, 4).map((elem, index) => (
-                <span key={index}>
-                  {elem}
-                  {index !== userDet.skills.length - 1 && ","}
-                </span>
+                <Badge key={index}>{elem}</Badge>
               ))}
             </div>
             {userDet?.skills.length > 4 && (

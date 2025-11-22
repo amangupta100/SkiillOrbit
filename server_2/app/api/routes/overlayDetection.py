@@ -7,11 +7,16 @@ import numpy as np
 import pytesseract
 from PIL import Image
 from fastapi import APIRouter, Header, HTTPException
+from pydantic import BaseModel  # 🔹 NEW: Import Pydantic BaseModel
+import os
 
-router = APIRouter(prefix="/overlay", tags=["overlay-detection"])
+router = APIRouter(prefix="/api/v1/overlay", tags=["overlay-detection"])
 
 # Tesseract configuration (adjust path if needed for your server environment)
-# pytesseract.pytesseract.tesseract_cmd = r'/usr/bin/tesseract'  # Example for Linux; auto-detected on most systems
+pytesseract.pytesseract.tesseract_cmd = os.environ.get('TESSERACT_CMD', '/usr/bin/tesseract')
+
+class ScreenshotRequest(BaseModel):  # 🔹 NEW: Pydantic model for JSON body
+    screenshot: str
 
 def detect_overlay(image: Image.Image) -> Tuple[bool, Optional[Tuple[int, int, int, int]], str]:
     """
@@ -93,7 +98,7 @@ def detect_overlay(image: Image.Image) -> Tuple[bool, Optional[Tuple[int, int, i
 
 @router.post("/detect")
 async def detect_overlay_endpoint(
-    screenshot: str,  # Base64-encoded image in request body (JSON: {"screenshot": "base64_string"})
+    request: ScreenshotRequest,  # 🔹 CHANGED: Use Pydantic model instead of raw str
     socket_id: str = Header(..., alias="X-Socket-ID")  # Socket ID from header
 ):
     """
@@ -104,7 +109,7 @@ async def detect_overlay_endpoint(
     """
     try:
         # Decode base64 to PIL Image
-        img_data = base64.b64decode(screenshot)
+        img_data = base64.b64decode(request.screenshot)  # 🔹 CHANGED: Access via request.screenshot
         img = Image.open(BytesIO(img_data))
         
         # Detect overlay

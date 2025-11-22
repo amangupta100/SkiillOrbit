@@ -4,6 +4,17 @@ const Application = require("../../models/ApplicationModel");
 const Job = require("../../models/JobModel");
 const Internship = require("../../models/InternshipModel");
 const User = require("../../models/UserModel"); // assuming you have a User model
+const InterviewSchema = require("../../models/InterviewSchema");
+const Recruiter = require("../../models/RecruiterModel");
+const {
+  sendInterviewScheduledEmail,
+  scheduleReminderJob,
+} = require("../recruiter/sendMailContr");
+const { format } = require("date-fns");
+
+function generateInterviewCode() {
+  return Math.random().toString(36).substring(2, 12).toUpperCase();
+}
 
 const searchApplicants = async (req, res) => {
   try {
@@ -67,7 +78,6 @@ const searchApplicants = async (req, res) => {
       applicants: uniqueApplicants,
     });
   } catch (err) {
-    console.error("Search applicants error:", err);
     res.status(500).json({
       success: false,
       message: "Server error while searching applicants",
@@ -155,7 +165,6 @@ const getChatList = async (req, res) => {
       chats: chatList,
     });
   } catch (err) {
-    console.error("❌ Error fetching chat list:", err);
     return res.status(500).json({
       success: false,
       message: "Server error while fetching chat list",
@@ -210,7 +219,6 @@ const getChatMessages = async (req, res) => {
       messages: sortedMessages,
     });
   } catch (error) {
-    console.error("getChatMessages error:", error);
     return res.status(500).json({
       success: false,
       message: "Server error while fetching messages",
@@ -414,10 +422,255 @@ const getAllChatsWithMessages = async (req, res) => {
       chats: chatList,
     });
   } catch (err) {
-    console.error("❌ Error fetching chats with messages:", err);
     return res.status(500).json({
       success: false,
       message: "Server error while fetching chats with messages",
+    });
+  }
+};
+
+const GetPrivateChat = async (req, res) => {
+  try {
+    const { senderId, senderModel, receiverId, receiverModel } = req.body;
+
+    // Validation
+    if (!senderId || !receiverId || !senderModel || !receiverModel) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "Missing required fields: senderId, senderModel, receiverId, receiverModel",
+      });
+    }
+
+    // Ensure models are valid (based on schema enum)
+    const validModels = ["User", "Recruiter"];
+    if (
+      !validModels.includes(senderModel) ||
+      !validModels.includes(receiverModel)
+    ) {
+      return res.status(400).json({
+        success: false,
+        message:
+          'Invalid senderModel or receiverModel. Must be "User" or "Recruiter".',
+      });
+    }
+
+    // Find existing private chat between these two users
+    const existingChat = await Chat.findOne({
+      type: "private",
+      members: {
+        $all: [
+          { userId: senderId, userModel: senderModel },
+          { userId: receiverId, userModel: receiverModel },
+        ],
+      },
+    }).select("_id"); // Only select ID for efficiency
+
+    if (existingChat) {
+      return res.json({
+        success: true,
+        chatId: existingChat._id.toString(),
+        exists: true,
+      });
+    }
+
+    // Create new private chat
+    const newChat = new Chat({
+      type: "private",
+      name: null, // Private chats typically don't have a name; can be set dynamically if needed
+      description: null,
+      avatar: null,
+      members: [
+        {
+          userId: senderId,
+          userModel: senderModel,
+          role: "member",
+          joinedAt: new Date(),
+        },
+        {
+          userId: receiverId,
+          userModel: receiverModel,
+          role: "member",
+          joinedAt: new Date(),
+        },
+      ],
+      lastMessage: null, // No messages yet
+      createdBy: senderId,
+      createdByModel: senderModel,
+      isArchived: false,
+      isMuted: false,
+    });
+
+    await newChat.save();
+
+    // Optionally, populate or add more details if needed (e.g., receiver name for display)
+    // But for now, just return the ID
+
+    res.status(201).json({
+      success: true,
+      chatId: newChat._id.toString(),
+      exists: false,
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: "Internal server error: " + error.message,
+    });
+  }
+};
+
+// Schedule Interview Controller
+const scheduleInterview = async (req, res) => {
+  try {
+    const {
+      applicantId,
+      postingId,
+      interviewDate,
+      notes = "",
+      postingType,
+    } = req.body; // 🚨 Explicitly destructure postingType
+    const recruiterId = req.recruiter.id;
+
+    // Validation
+    if (!applicantId || !postingId || !interviewDate || !postingType) {
+      // 🚨 Require postingType
+      return res.status(400).json({
+        success: false,
+        message:
+          "Missing required fields: applicantId, postingId, interviewDate, postingType (job/internship)",
+      });
+    }
+
+    // 🚨 NEW: Determine & validate posting type (override if mismatched)
+    let actualPostingType = postingType.toLowerCase();
+    let posting = null;
+    if (actualPostingType === "job") {
+      posting = await JobModel.findById(postingId)
+        .populate("company", "name")
+        .lean();
+    } else if (actualPostingType === "internship") {
+      posting = await Internship.findById(postingId)
+        .populate("company", "name")
+        .lean();
+    } else {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid postingType: must be 'job' or 'internship'",
+      });
+    }
+
+    if (!posting) {
+      return res.status(404).json({
+        success: false,
+        message: "Posting not found—cannot schedule interview",
+      });
+    }
+
+    // Generate unique interview code
+    const uniqueCode = generateInterviewCode();
+
+    // Create new interview (use validated type)
+    const newInterview = new InterviewSchema({
+      // 🚨 Schema now validates these
+      recruiterId,
+      applicantId,
+      postingId,
+      postingType: actualPostingType, // Normalized
+      interviewDate: new Date(interviewDate),
+      notes,
+      status: "SCHEDULED",
+      reminderJobScheduled: false, // Set after scheduling
+      reminderSent: false,
+      uniqueCode,
+    });
+
+    await newInterview.save();
+
+    // Schedule reminder job (unchanged)
+    const reminderResult = await scheduleReminderJob(newInterview);
+    if (!reminderResult.success) {
+    }
+
+    // Use validated posting data (no re-fetch needed)
+    const role = posting.role || "Role"; // Both schemas have 'role'
+    const companyName = posting.company ? posting.company.name : "Company";
+
+    const formattedDate = format(new Date(interviewDate), "PPP p");
+
+    // Fetch applicant/recruiter (unchanged)
+    const applicant = await User.findById(applicantId).select("name email");
+    const recruiter = await Recruiter.findById(recruiterId).select(
+      "name email"
+    );
+
+    if (!applicant || !recruiter) {
+      await InterviewSchema.findByIdAndDelete(newInterview._id); // Cleanup
+      return res
+        .status(404)
+        .json({ success: false, message: "Applicant or recruiter not found" });
+    }
+
+    // Send scheduled email (unchanged, but uses validated role/companyName)
+    const emailResult = await sendInterviewScheduledEmail(
+      applicant.email,
+      applicant.name,
+      recruiter.name,
+      companyName,
+      role,
+      interviewDate,
+      notes,
+      uniqueCode
+    );
+
+    // Notifications (unchanged)
+    await User.findByIdAndUpdate(applicantId, {
+      $push: {
+        notifications: {
+          type: "INTERVIEW_SCHEDULED",
+          title: "Interview Scheduled",
+          message: `Your interview for ${role} at ${companyName} is scheduled for ${formattedDate}.`,
+          meta: {
+            interviewId: newInterview._id,
+            postingId,
+            interviewDate,
+            uniqueCode,
+          },
+          read: false,
+        },
+      },
+    });
+
+    await Recruiter.findByIdAndUpdate(recruiterId, {
+      $push: {
+        notifications: {
+          type: "INTERVIEW_SCHEDULED",
+          title: "Interview Scheduled",
+          message: `Interview with ${applicant.name} for ${role} is scheduled for ${formattedDate}.`,
+          meta: {
+            interviewId: newInterview._id,
+            applicantId,
+            interviewDate,
+            uniqueCode,
+          },
+          read: false,
+        },
+      },
+    });
+
+    res.status(201).json({
+      success: true,
+      message: "Interview scheduled successfully",
+      data: {
+        interviewId: newInterview._id,
+        interviewDate: formattedDate,
+        uniqueCode,
+        reminderJobId: reminderResult.jobId || null,
+      },
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: `Internal server error: ${error.message}`,
     });
   }
 };
@@ -428,4 +681,6 @@ module.exports = {
   createOrGetConversation,
   getChatMessages,
   getAllChatsWithMessages,
+  GetPrivateChat,
+  scheduleInterview,
 };

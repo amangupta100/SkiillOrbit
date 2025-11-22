@@ -95,6 +95,19 @@ const jobSeekerNavigationItems = [
   { title: "Profile", url: "/job-seekerDashboard/profile", icon: User },
 ];
 
+const adminNavigationItems = [
+  {
+    title: "Manage Skills & Domains",
+    url: "/adminDashboard/manageDomains&Skills",
+    icon: Briefcase,
+  },
+  {
+    title: "Manage Queries",
+    url: "/adminDashboard/allQueries",
+    icon: MessageSquare,
+  },
+];
+
 const hidePaths = [
   "/job-seekerDashboard/test/verifyIdentity",
   "/job-seekerDashboard/test/instructions",
@@ -115,10 +128,16 @@ export function DesktopAppSidebar() {
   const unreadCount = useChatStore((state) => state.getUnreadCount());
   const role = pathname.includes("/recruiterDashboard")
     ? "recruiter"
-    : "job-seeker";
+    : pathname.includes("/job-seekerDashboard")
+    ? "job-seeker"
+    : "admin";
 
   const navigationItems =
-    role === "recruiter" ? recruiterNavigationItems : jobSeekerNavigationItems;
+    role === "recruiter"
+      ? recruiterNavigationItems
+      : role === "job-seeker"
+      ? jobSeekerNavigationItems
+      : adminNavigationItems;
 
   const shouldHide =
     hidePaths.includes(pathname) || pathname.startsWith("/interviews/");
@@ -167,7 +186,9 @@ export function DesktopAppSidebar() {
                 const homePath =
                   role === "recruiter"
                     ? "/recruiterDashboard"
-                    : "/job-seekerDashboard";
+                    : role === "job-seeker"
+                    ? "/job-seekerDashboard"
+                    : "adminDashboard";
 
                 const showBadge = item.title === "Messages" && unreadCount > 0;
 
@@ -313,6 +334,11 @@ export function MobileAppSidebar() {
             title: "Profile",
             url: "/job-seekerDashboard/profile",
             icon: User,
+          },
+          {
+            title: "Manage Interviews",
+            url: "/interviews",
+            icon: Calendar,
           },
           {
             id: "tests",

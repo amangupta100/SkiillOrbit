@@ -55,13 +55,13 @@ const greetUser = `
     <div class="container">
       <div class="header">
         <!-- 🔻 Insert your logo URL below -->
-        <img src="https://res.cloudinary.com/ddad6pdhx/image/upload/v1758799527/logo_qzuuth.png" alt="SkillOrbit Logo" />
-        <h1>Welcome to SkillOrbit 🚀</h1>
+        <img src="https://res.cloudinary.com/ddad6pdhx/image/upload/v1758799527/logo_qzuuth.png" alt="SkillsOrbit Logo" />
+        <h1>Welcome to SkillsOrbit 🚀</h1>
       </div>
       <div class="content">
         <p>Hi {{ .Candidate_Name}},</p>
         <p>
-          Welcome to <strong>SkillOrbit</strong> — where your skills speak louder than your resume.
+          Welcome to <strong>SkillsOrbit</strong> — where your skills speak louder than your resume.
           We’re excited to have you on board!
         </p>
         <p>
@@ -75,11 +75,11 @@ const greetUser = `
         <p>
           Let’s make your job search smarter, faster, and fairer.
         </p>
-        <a class="button" href="https://skillorbit.com/dashboard/user">Take Your First Test</a>
+        <a class="button" href="https://skillsorbit.in/job-seekerDashboard/test">Take Your First Test</a>
       </div>
       <div class="footer">
-        SkillOrbit <br />
-        You're receiving this email because you signed up for SkillOrbit.
+        SkillsOrbit <br />
+        You're receiving this email because you signed up for SkillsOrbit.
       </div>
     </div>
   </body>

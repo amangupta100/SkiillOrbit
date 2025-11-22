@@ -1,7 +1,14 @@
 // page.jsx
 "use client";
 
-import React, { use, useEffect, useRef, useState, useCallback } from "react";
+import React, {
+  use,
+  useEffect,
+  useRef,
+  useState,
+  useCallback,
+  useMemo,
+} from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { PhoneOff, Info, Copy, X, MicOff } from "lucide-react";
@@ -23,7 +30,6 @@ import ControlsBar from "@/components/recruiterDashboard/Interview/session/Contr
 import useRoomConnection from "@/lib/recruiterDashboard/roomConnection";
 import { IoMdClose } from "react-icons/io";
 import Messages from "@/components/recruiterDashboard/Interview/session/Messages";
-// 🔹 REMOVED: html2canvas import (moved to hook)
 
 export default function Room({ params }) {
   const { roomId } = use(params);
@@ -39,6 +45,7 @@ export default function Room({ params }) {
   const [showSidebar, setShowSidebar] = useState(false);
   const [time, setTime] = useState(new Date());
   const [copy, setCopy] = useState(false);
+  const [copyUrl, setCopyUrl] = useState(false);
   const [isScreenSharing, setIsScreenSharing] = useState(false);
   const [participantSideBar, setPartSidebar] = useState(false);
   const [screenLoading, setScreenLoading] = useState(false);
@@ -76,6 +83,7 @@ export default function Room({ params }) {
     remoteStreamsMap,
     userCount,
     loading,
+    pending,
     localVideoRef,
     localStreamRef,
     socketRef,
@@ -85,15 +93,17 @@ export default function Room({ params }) {
     clearMonitorLogs,
   } = useRoomConnection({ roomId, userName, router, isMuted, cameraOn, role });
 
+  console.log(participants, userCount);
+
   // Play ping sound once at mid volume when entering the room (after loading and user info)
   useEffect(() => {
-    if (!loading && userName && audioRef.current) {
+    if (!loading && !pending && userName && audioRef.current) {
       audioRef.current.volume = 0.3; // Mid volume
       audioRef.current.play().catch((err) => {
         console.error("Failed to play ping sound:", err);
       });
     }
-  }, [loading, userName]);
+  }, [loading, pending, userName]);
 
   // 🔹 NEW: Fetch current monitoring state on connect (host only)
   useEffect(() => {
@@ -102,9 +112,11 @@ export default function Room({ params }) {
     }
   }, [socketRef.current, role, roomId]);
 
-  // 🔹 UPDATED: Listen for monitoring updates and events (host-focused)
+  // 🔹 NEW: Listen for monitoring updates (host only)
   useEffect(() => {
-    if (!socketRef.current) return;
+    if (!socketRef.current || role !== "recruiter") return;
+
+    const socket = socketRef.current;
 
     const handleMonitoringUpdated = ({ targetId, action }) => {
       setMonitoredParticipants((prev) => {
@@ -122,101 +134,76 @@ export default function Room({ params }) {
       setMonitoredParticipants(new Set(monitoredIds));
     };
 
-    const handleMonitorEvent = (payload) => {
-      // Only host processes these
-      if (role !== "recruiter") return;
-
-      // Handle event type safely (string for visibility, object for others)
-      const eventType =
-        typeof payload.event === "string"
-          ? payload.event
-          : payload.event?.type || "unknown";
-
-      // For screenshots: Already handled via overlay-detection-result
-      if (eventType !== "screenshot") {
-        setMonitorLogs((prev) => [
-          ...prev,
-          {
-            event: `${payload.socketId} - ${eventType}`,
-            time: payload.time,
-          },
-        ]);
-      }
-    };
-
-    // 🔹 NEW: Handle overlay detection results (host only)
-    const handleOverlayDetectionResult = ({
-      socketId,
-      detected,
-      processedScreenshotB64,
-      coords,
-    }) => {
-      if (role !== "recruiter") return;
-
-      const eventMsg = detected ? "OVERLAY DETECTED" : "No overlay";
-      setMonitorLogs((prev) => [
-        ...prev,
-        { event: `${socketId} - ${eventMsg}`, time: new Date().toISOString() },
-      ]);
-
-      if (detected) {
-        toast.error(`Overlay detected for ${socketId}!`, {
-          description: "AI assistance suspected. Review screenshot.",
-          action: {
-            label: "View",
-            onClick: () => {
-              // Open processed screenshot in new tab or modal
-              const imgUrl = `data:image/png;base64,${processedScreenshotB64}`;
-              window.open(imgUrl, "_blank");
-            },
-          },
-        });
-      } else {
-      }
-    };
-
-    // Handle overlay error
-    const handleOverlayDetectionError = ({ socketId, error }) => {
-      if (role !== "recruiter") return;
-      setMonitorLogs((prev) => [
-        ...prev,
-        {
-          event: `${socketId} - Overlay detection error: ${error}`,
-          time: new Date().toISOString(),
-        },
-      ]);
-      toast.error(`Overlay detection failed for ${socketId}: ${error}`);
-    };
-
-    socketRef.current.on("monitoring-updated", handleMonitoringUpdated);
-    socketRef.current.on("current-monitoring", handleCurrentMonitoring);
-    socketRef.current.on("monitor-event", handleMonitorEvent);
-    socketRef.current.on(
-      "overlay-detection-result",
-      handleOverlayDetectionResult
-    );
-    socketRef.current.on(
-      "overlay-detection-error",
-      handleOverlayDetectionError
-    );
+    socket.on("monitoring-updated", handleMonitoringUpdated);
+    socket.on("current-monitoring", handleCurrentMonitoring);
 
     return () => {
-      socketRef.current.off("monitoring-updated", handleMonitoringUpdated);
-      socketRef.current.off("current-monitoring", handleCurrentMonitoring);
-      socketRef.current.off("monitor-event", handleMonitorEvent);
-      socketRef.current.off(
-        "overlay-detection-result",
-        handleOverlayDetectionResult
-      );
-      socketRef.current.off(
-        "overlay-detection-error",
-        handleOverlayDetectionError
-      );
+      socket.off("monitoring-updated", handleMonitoringUpdated);
+      socket.off("current-monitoring", handleCurrentMonitoring);
     };
-  }, [socketRef.current, role, roomId, setMonitorLogs]);
+  }, [socketRef.current, role, roomId]);
 
-  // 🔹 REMOVED: captureScreenshot, start/stopScreenshotInterval, and enable-monitor useEffect
-  // (Now handled in hook for guaranteed post-connect attachment)
+  console.log(monitorLogs);
+
+  // 🔹 UPDATED: Listen for monitoring updates and events (host-focused)
+  useEffect(() => {
+    if (!socketRef.current || !localStreamRef.current) return;
+
+    let intervalId;
+    const video = document.createElement("video");
+    const canvas = document.createElement("canvas");
+
+    video.setAttribute("autoplay", "");
+    video.setAttribute("playsinline", "");
+    video.style.display = "none";
+    canvas.style.display = "none";
+
+    document.body.appendChild(video);
+    document.body.appendChild(canvas);
+
+    video.srcObject = localStreamRef.current;
+    video.onloadedmetadata = () => video.play();
+
+    const sendScreenshot = () => {
+      const myId = socketRef.current?.id;
+      const isBeingMonitored = monitoredParticipants.has(myId);
+      if (!isBeingMonitored) return;
+
+      if (!video.videoWidth) return;
+      if (socketRef.current.readyState !== WebSocket.OPEN) return;
+
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      const ctx = canvas.getContext("2d");
+      ctx.drawImage(video, 0, 0);
+
+      const base64 = canvas.toDataURL("image/jpeg", 0.8);
+
+      socketRef.current.emit("monitor-event", {
+        roomId,
+        socketId: myId,
+        event: {
+          type: "screenshot",
+          data: base64,
+        },
+      });
+    };
+
+    // ✅ every 5 seconds
+    intervalId = setInterval(sendScreenshot, 5000);
+
+    // cleanup
+    return () => {
+      clearInterval(intervalId);
+      video.remove();
+      canvas.remove();
+    };
+  }, [
+    socketRef.current,
+    setMonitorLogs,
+    localStreamRef.current,
+    monitoredParticipants,
+  ]);
 
   const handleCopy = async () => {
     try {
@@ -224,6 +211,22 @@ export default function Room({ params }) {
       await navigator.clipboard.writeText(roomId);
       toast.success("Room Id copied to clipboard");
       setTimeout(() => setCopy(false), 1500);
+    } catch (err) {
+      toast.error(err?.message || "Copy failed");
+    }
+  };
+
+  const handleCopyUrl = async () => {
+    try {
+      setCopyUrl(true);
+      const baseUrl =
+        process.env.NODE_ENV === "development"
+          ? "http://localhost:3000"
+          : "https://skillsorbit.in";
+      const fullUrl = `${baseUrl}/interviews/${roomId}`;
+      await navigator.clipboard.writeText(fullUrl);
+
+      setTimeout(() => setCopyUrl(false), 1500);
     } catch (err) {
       toast.error(err?.message || "Copy failed");
     }
@@ -420,6 +423,21 @@ export default function Room({ params }) {
     });
   };
 
+  if (pending) {
+    console.log(pending);
+    return (
+      <div className="flex items-center justify-center w-screen h-screen bg-gray-100">
+        <div className="flex flex-col items-center">
+          <div className="w-10 h-10 border-4 border-gray-300 border-t-blue-600 rounded-full animate-spin" />
+          <p className="mt-4 text-gray-700">
+            Waiting for the host to join the room...
+          </p>
+          <p className="mt-2 text-sm text-gray-500">Room ID: {roomId}</p>
+        </div>
+      </div>
+    );
+  }
+
   if (loading || !userName) {
     return (
       <div className="flex items-center justify-center w-screen h-screen bg-gray-100">
@@ -430,6 +448,8 @@ export default function Room({ params }) {
       </div>
     );
   }
+
+  console.log(pending);
 
   const selectedParticipant = participants?.find(
     (p) => p.socketId === fullScreenId
@@ -448,7 +468,7 @@ export default function Room({ params }) {
     : null;
 
   return (
-    <div className="flex flex-col w-screen h-screen overflow-hidden bg-gray-100 text-gray-900">
+    <div className="flex flex-col w-screen h-screen overflow-x-hidden bg-gray-100 text-gray-900">
       <audio ref={audioRef} src="/ping_sound_effect.mp3" preload="auto" />
 
       {/* header */}
@@ -489,7 +509,7 @@ export default function Room({ params }) {
                   <div className="relative cursor-pointer">
                     <IoIosNotificationsOutline
                       onClick={() => setNotf(!notif)}
-                      className="w-6 h-6 text-blue-500"
+                      className="w-7 h-7 text-blue-500"
                     />
                   </div>
                 </TooltipTrigger>
@@ -502,7 +522,7 @@ export default function Room({ params }) {
               <TooltipTrigger asChild>
                 <IoInformation
                   onClick={() => setShowSidebar((s) => !s)}
-                  className="bg-gray-200 border border-zinc-300 w-8 h-8 text-black hover:bg-gray-500/40 rounded-lg cursor-pointer"
+                  className="w-8 h-8 text-black hover:text-black/60 cursor-pointer"
                 />
               </TooltipTrigger>
               <TooltipContent side="bottom">Meeting Information</TooltipContent>
@@ -540,7 +560,7 @@ export default function Room({ params }) {
       </TooltipProvider>
 
       {/* main */}
-      <div className="flex flex-1 overflow-hidden">
+      <div className="flex flex-1 overflow-y-auto">
         <div id="video-grid" className="flex-1 flex flex-wrap gap-8 p-5">
           {renderVideoCards()}
         </div>
@@ -609,7 +629,7 @@ export default function Room({ params }) {
         {showSidebar && (
           <div className="w-80 bg-gray-50 border-l border-gray-300 flex flex-col">
             <div className="p-3 border-b border-gray-300 font-semibold text-gray-800">
-              Meeting Information
+              Meeting Details
             </div>
             <div className="flex-1 p-3 space-y-2 text-sm text-gray-700">
               <span
@@ -627,6 +647,25 @@ export default function Room({ params }) {
                 <strong>Participants:</strong> {userCount}
               </p>
             </div>
+
+            <div className="bg-zinc-100 px-3 py-1 mb-4 m-1 rounded-lg border-[1.6px] border-zinc-200">
+              <h1 className="text-sm font-semibold">Joining Info</h1>
+              {process.env.NODE_ENV === "development"
+                ? `http://localhost:3000/interviews/${roomId}`
+                : `https://skillsorbit.in/interviews/${roomId}`}
+
+              <span
+                className="text-sm font-medium flex mt-4 gap-2 cursor-pointer hover:text-gray-600 justify-center w-full"
+                onClick={handleCopyUrl}
+              >
+                Copy Joining URL
+                {copyUrl ? (
+                  <LuCopyCheck className="w-4 h-4 text-green-500" />
+                ) : (
+                  <Copy className="w-4 h-4" />
+                )}
+              </span>
+            </div>
           </div>
         )}
       </div>
@@ -637,7 +676,7 @@ export default function Room({ params }) {
         cameraOn={cameraOn}
         toggleMute={toggleMute}
         toggleCamera={toggleCamera}
-        userCount={userCount}
+        userCount={participants.length}
         isScreenSharing={isScreenSharing}
         toggleScreenShare={toggleScreenShare}
         setpartSidebarToggle={() => setPartSidebar(!participantSideBar)}
@@ -666,7 +705,7 @@ export default function Room({ params }) {
   );
 }
 
-// FullScreenParticipant component (unchanged)
+// FullScreenParticipant component (updated with prevStreamRef and optimized deps)
 const FullScreenParticipant = ({
   participant,
   isLocal,
@@ -679,7 +718,14 @@ const FullScreenParticipant = ({
 }) => {
   const videoRef = useRef(null);
   const audioRef = useRef(null);
+  const prevStreamRef = useRef(null); // Track previous stream to avoid resets
   const firstLetter = participant?.userName?.charAt(0)?.toUpperCase() || "?";
+
+  // Memoize the remote stream to stabilize deps
+  const remoteStream = useMemo(
+    () => remoteStreamsMap[participant.socketId],
+    [remoteStreamsMap, participant.socketId]
+  );
 
   useEffect(() => {
     if (videoRef.current) {
@@ -689,20 +735,29 @@ const FullScreenParticipant = ({
       } else if (isLocal) {
         streamToSet = localStreamRef.current;
       } else {
-        streamToSet = remoteStreamsMap[participant.socketId];
+        streamToSet = remoteStream;
       }
-      if (streamToSet) {
+
+      // Only set if stream changed (prevents flicker on same ref)
+      if (streamToSet && streamToSet !== prevStreamRef.current) {
         videoRef.current.srcObject = streamToSet;
+        prevStreamRef.current = streamToSet;
       }
     }
+
     if (audioRef.current && !isLocal) {
-      audioRef.current.srcObject = remoteStreamsMap[participant.socketId];
+      const audioStream = remoteStream;
+      // Same check for audio to avoid glitches
+      if (audioStream && audioStream !== prevStreamRef.current) {
+        audioRef.current.srcObject = audioStream;
+        prevStreamRef.current = audioStream; // Shared ref is fine since streams are typically unified
+      }
     }
   }, [
     isLocal,
     isScreenSharing,
     localStreamRef,
-    remoteStreamsMap,
+    remoteStream, // Memoized – less volatile than full map
     participant.socketId,
     displayStreamRef,
   ]);
@@ -755,6 +810,7 @@ const FullScreenParticipant = ({
 
 // Notifications component (updated with clearLogs prop)
 const Notifications = ({ logs, notiBox, setnotBox, clearLogs }) => {
+  console.log(logs);
   function formatTime(isoString) {
     if (!isoString) return "";
     const date = new Date(isoString);
@@ -781,7 +837,7 @@ const Notifications = ({ logs, notiBox, setnotBox, clearLogs }) => {
     <div
       className={`
         ${logs.length === 0 ? "flex justify-center items-center" : ""}
-        absolute top-16 right-5 w-80 h-80 gap-2 p-3 overflow-y-auto flex flex-col bg-white border border-gray-300 rounded-lg shadow-lg z-50
+        absolute top-16 right-5 w-80 h-80 gap-2 p-3 overflow-y-auto flex flex-col bg-white border border-gray-300 rounded-lg shadow-lg z-[1001]
       `}
     >
       {logs.length === 0 ? (
@@ -810,7 +866,7 @@ const Notifications = ({ logs, notiBox, setnotBox, clearLogs }) => {
                 className="p-3 border-[1.6px] rounded-lg border-gray-200"
               >
                 <p className="text-[12px] text-gray-700">
-                  {elem?.event.toUpperCase()}
+                  {elem?.event.type.toUpperCase()}
                 </p>
                 <p> {formatTime(elem?.time)} </p>
               </div>

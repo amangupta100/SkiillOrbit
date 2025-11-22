@@ -1,23 +1,39 @@
-"use client";
-import React, { useEffect, useState } from "react";
-import { RxCross1, RxCopy, RxCheck } from "react-icons/rx";
-import { Button } from "@/components/ui/button";
+// Updated CreateRoomModal
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { Check, Copy } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { IoClose } from "react-icons/io5";
 
-export default function CreateRoomModal({ onClose, data }) {
+export default function CreateRoomModal({
+  onClose,
+  data,
+  onChat,
+  messageCreation,
+}) {
   const [roomId, setRoomId] = useState("");
   const [copied, setCopied] = useState(false);
+  const [urlCopied, setUrlCopied] = useState(false);
   const router = useRouter();
+
+  const BASE_URL =
+    process.env.NODE_ENV === "production"
+      ? "https://skillsorbit.in"
+      : "http://localhost:3000";
+
+  const roomUrl = `${BASE_URL}/interviews/${roomId}`;
 
   useEffect(() => {
     generateRoomId();
   }, []);
 
-  console.log(data);
+  useEffect(() => {
+    document.body.style.overflow = "hidden";
+    return () => (document.body.style.overflow = "auto");
+  }, []);
 
-  // Generate random room ID locally
   const generateRoomId = () => {
-    const newRoomId = Math.random().toString(36).substring(2, 10);
+    const newRoomId = Math.random().toString(36).substring(2, 12).toUpperCase();
     setRoomId(newRoomId);
   };
 
@@ -28,26 +44,29 @@ export default function CreateRoomModal({ onClose, data }) {
     setTimeout(() => setCopied(false), 1500);
   };
 
+  const handleCopyURL = () => {
+    navigator.clipboard.writeText(roomUrl);
+    setUrlCopied(true);
+    setTimeout(() => setUrlCopied(false), 1500);
+  };
+
   const handleEnterRoom = () => {
     if (!roomId) return;
-
-    // save user info so [roomId].jsx can pick it up
     sessionStorage.setItem("data", JSON.stringify(data));
-
-    // redirect directly (room creation happens in [roomId].jsx)
-    router.replace(`/interviews/${roomId}`);
+    sessionStorage.setItem("role", "host");
+    onChat ? onClose() : router.replace(`/interviews/${roomId}`);
   };
 
   return (
-    <div className="fixed inset-0 z-[999] flex items-center justify-center w-screen h-screen bg-black/70 backdrop-blur-md px-4">
+    <div className="fixed inset-0 z-[999] flex items-center justify-center w-screen h-screen bg-black/70 backdrop-blur-sm px-4">
       <div className="w-full max-w-md bg-white rounded-2xl shadow-xl p-6 relative animate-in fade-in slide-in-from-bottom-4">
         {/* Close button */}
         <button
           onClick={onClose}
           aria-label="Close modal"
-          className="absolute top-3 cursor-pointer right-3 p-1 rounded-full hover:bg-gray-100 transition"
+          className="absolute top-1 cursor-pointer right-3 p-1 rounded-full hover:bg-gray-100 transition"
         >
-          <RxCross1 className="w-5 h-5 text-gray-600" />
+          <IoClose className="w-7 h-7 text-gray-600" />
         </button>
 
         <h2 className="text-xl font-semibold text-center mb-6">
@@ -63,6 +82,7 @@ export default function CreateRoomModal({ onClose, data }) {
 
         {roomId && (
           <div className="space-y-6">
+            {/* Room ID */}
             <div className="bg-gray-100 px-4 py-3 rounded-lg flex items-center justify-between">
               <span className="font-mono text-lg tracking-wide">{roomId}</span>
               <button
@@ -70,25 +90,52 @@ export default function CreateRoomModal({ onClose, data }) {
                 className="p-2 rounded-md hover:bg-gray-200 transition"
               >
                 {copied ? (
-                  <RxCheck className="w-5 h-5 text-green-600" />
+                  <Check className="w-5 h-5 text-green-600" />
                 ) : (
-                  <RxCopy className="w-5 h-5 text-gray-600" />
+                  <Copy className="w-5 h-5 text-gray-600" />
                 )}
               </button>
             </div>
 
-            <div className="flex flex-col gap-3">
-              <Button onClick={handleEnterRoom} className="w-full">
-                Enter Room
-              </Button>
-              <Button
-                variant="outline"
-                onClick={generateRoomId}
-                className="w-full"
-              >
-                Generate Another ID
-              </Button>
-            </div>
+            {/* When message creation is TRUE */}
+            {messageCreation ? (
+              <div className="space-y-4">
+                <p className="text-sm text-gray-600">
+                  Share the room link with the participant:
+                </p>
+
+                {/* URL Box */}
+                <div className="bg-gray-100 px-4 py-3 rounded-lg flex items-center justify-between">
+                  <span className="text-sm font-medium truncate max-w-[70%]">
+                    {roomUrl}
+                  </span>
+                  <button
+                    onClick={handleCopyURL}
+                    className="p-2 rounded-md hover:bg-gray-200 transition"
+                  >
+                    {urlCopied ? (
+                      <Check className="w-5 h-5 text-green-600" />
+                    ) : (
+                      <Copy className="w-5 h-5 text-gray-600" />
+                    )}
+                  </button>
+                </div>
+              </div>
+            ) : (
+              // When NOT messageCreation → show normal buttons
+              <div className="flex flex-col gap-3">
+                <Button onClick={handleEnterRoom} className="w-full">
+                  Enter Room
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={generateRoomId}
+                  className="w-full"
+                >
+                  Generate Another ID
+                </Button>
+              </div>
+            )}
           </div>
         )}
       </div>

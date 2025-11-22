@@ -1,57 +1,97 @@
-import Image from 'next/image';
-import Facebook from '../assests/facebook.svg';
-import Twitter from '../assests/twitter.svg';
-import Insta from '../assests/instagram.svg'
-import logo from '../assests/logo.png';
+"use client";
+
+import Link from "next/link";
+import { BsLinkedin, BsTwitter, BsInstagram, BsFacebook } from "react-icons/bs";
+import Image from "next/image";
+import logo from "@/assests/skillsorbit_logo.png"; // Replace with your actual logo path
 
 export default function Footer() {
   return (
-    <div className="relative w-full min-h-fit my-28 md:py-10">
-
-      {/* Footer Content */}
-      <footer className="relative z-10 px-4 pt-32 pb-10 text-white">
-        <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-start gap-10 md:items-center">
-          
-          {/* Logo + Copyright */}
-          <div className="flex flex-col">
-            <Image 
-              src={logo} 
-              alt="SkillOrbit Logo" 
-              width={200} 
-              height={180} 
-              className="w-40 md:w-48"  priority
-            />
-            <p className="text-sm text-gray-300 mt-2">
-              © {new Date().getFullYear()} SkillOrbit. All rights reserved.
-            </p>
+    <footer className="bg-gradient-to-r from-gray-900 via-gray-800 to-black text-white py-12 px-4">
+      <div className="max-w-8xl sm:w-full mx-auto">
+        <div className="flex flex-col sm:flex-row justify-between  gap-8">
+          {/* Logo */}
+          <div className="flex-shrink-0">
+            <Link href="/">
+              <Image
+                src={logo}
+                alt="Skills Orbit Logo"
+                width={190}
+                height={50}
+                className="hover:opacity-80 sm:w-40 transition-opacity"
+              />
+            </Link>
           </div>
 
-          {/* Important Links */}
-          <div className="flex flex-col gap-2 text-base">
-            <h3 className="font-semibold text-white mb-2">Quick Links</h3>
-            <a href="#features" className="hover:text-primary transition-colors">Features</a>
-            <a href="#how-it-works" className="hover:text-primary transition-colors">How it Works</a>
-            <a href="#testimonials" className="hover:text-primary transition-colors">Testimonials</a>
-            <a href="#faqs" className="hover:text-primary transition-colors">FAQs</a>
-          </div>
-
-          {/* Social Icons */}
-          <div className="flex flex-col gap-4">
-            <h3 className="font-semibold text-white text-base">Connect With Us</h3>
-            <div className="flex gap-4">
-              <a href="https://facebook.com" target="_blank" rel="noopener noreferrer" className="hover:scale-110 transition-transform">
-                <Image alt='Facebook' src={Facebook} width={25} height={25} />
-              </a>
-              <a href="https://twitter.com" target="_blank" rel="noopener noreferrer" className="hover:scale-110 transition-transform">
-                <Image alt='Twitter' src={Twitter} width={25} height={25} />
-              </a>
-               <a href="https://twitter.com" target="_blank" rel="noopener noreferrer" className="hover:scale-110 transition-transform">
-                <Image alt='Insta' src={Insta} width={25} height={25} />
-              </a>
+          {/* Navigation Links */}
+          <nav className="flex flex-col sm:flex-row gap-6 sm:gap-8 lg:justify-end flex-1">
+            <div className="flex flex-col space-y-2 text-sm sm:text-base">
+              <Link
+                href="/about"
+                className="hover:text-blue-400 transition-colors duration-200"
+              >
+                About Us
+              </Link>
+              <Link
+                href="/contact"
+                className="hover:text-blue-400 transition-colors duration-200"
+              >
+                Contact Us
+              </Link>
             </div>
+            <div className="flex flex-col space-y-2 text-sm sm:text-base">
+              <Link
+                href="/login/recruiter"
+                className="hover:text-blue-400 transition-colors duration-200"
+              >
+                Recruiter Login
+              </Link>
+              <Link
+                href="/login/job-seeker"
+                className="hover:text-blue-400 transition-colors duration-200"
+              >
+                Job Seeker Login
+              </Link>
+            </div>
+          </nav>
+
+          {/* Social Media Icons */}
+          <div className="flex space-x-4">
+            <Link
+              href="https://www.linkedin.com/company/skills-orbit/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="p-2 rounded-full bg-white/10 hover:bg-white/20 transition-all duration-200 hover:scale-110"
+            >
+              <BsLinkedin className="h-5 w-5 text-white" />
+            </Link>
+            <Link
+              href="Take a look at SkillsOrbit (@SOrbit44262): https://x.com/SOrbit44262?t=L9S2V1_uAe_CPE89mO_1Nw&s=08"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="p-2 rounded-full bg-white/10 hover:bg-white/20 transition-all duration-200 hover:scale-110"
+            >
+              <BsTwitter className="h-5 w-5 text-white" />
+            </Link>
+            <Link
+              href="https://instagram.com"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="p-2 rounded-full bg-white/10 hover:bg-white/20 transition-all duration-200 hover:scale-110"
+            >
+              <BsInstagram className="h-5 w-5 text-white" />
+            </Link>
+            <Link
+              href="https://facebook.com"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="p-2 rounded-full bg-white/10 hover:bg-white/20 transition-all duration-200 hover:scale-110"
+            >
+              <BsFacebook className="h-5 w-5 text-white" />
+            </Link>
           </div>
         </div>
-      </footer>
-    </div>
+      </div>
+    </footer>
   );
 }

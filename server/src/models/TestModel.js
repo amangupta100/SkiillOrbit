@@ -37,8 +37,9 @@ const testSchema = new mongoose.Schema(
     uanswer: {
       type: [Object],
     },
-    canswer: {
-      type: [Object],
+    cAnswer: {
+      type: [Object], // each object contains { correctAnswer, reason }
+      default: [],
     },
   },
   {

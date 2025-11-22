@@ -11,17 +11,24 @@ import React, { useEffect } from "react";
 import { toast } from "sonner";
 import useChatStore from "@/store/recruiter/ChatStore";
 import { getChatSocket, getStatusSocket } from "@/lib/common/SocketClient";
+import useNotificationStore from "@/store/common/notificationStore";
 
 const layout = ({ children }) => {
   const { recruiter } = useRecruiterAuthStore();
   const checkAuth = useRecruiterAuthStore((state) => state.checkAuth);
   const router = useRouter();
   const chatStore = useChatStore();
+  const notifStore = useNotificationStore();
 
   useEffect(() => {
     if (recruiter?.id) {
       chatStore.setCurrentUserId(recruiter.id);
     }
+  }, [recruiter?.id]);
+
+  useEffect(() => {
+    if (!recruiter?.id) return;
+    notifStore.fetchNotifications();
   }, [recruiter?.id]);
 
   useEffect(() => {

@@ -17,6 +17,7 @@ import {
 } from "react-icons/fa";
 import empty from "@/assests/empty.svg";
 import { IoMdClose } from "react-icons/io";
+import { useRouter } from "next/navigation";
 
 const page = () => {
   const { selectedChat, messages, setSelectedChat, messageLoading } =
@@ -32,6 +33,7 @@ const page = () => {
     userId: user?.id,
     role_type: recruiter ? "recruiter" : "job-seeker",
   });
+  const router = useRouter();
 
   useEffect(() => {
     pingAudio.current = new Audio("/ping_sound_effect.mp3");
@@ -121,7 +123,7 @@ const page = () => {
         chatId,
         senderId: user?.id,
         senderModel: "User",
-        receiverId: selectedChat.user.userId,
+        receiverId: selectedChat.userId,
         receiverModel: "User",
         content: inputValue.trim(),
         media: attachedMedia || [],
@@ -175,6 +177,8 @@ const page = () => {
     }
   };
 
+  console.log(selectedChat);
+
   useEffect(() => {
     if (!selectedChat?._id) return;
     const store = useChatStore.getState();
@@ -185,12 +189,6 @@ const page = () => {
     if (existingMsgs.length === 0 && !isRecent) {
       // Fetch only for truly empty/old chats
       store.fetchAllChatsWithMessages();
-    } else {
-      console.log(
-        "⏭️ Skipping fetch: Recent or has",
-        existingMsgs.length,
-        "messages"
-      );
     }
     openChat({ chatId: selectedChat._id, viewerId: user?.id || recruiter?.id }); // Fix: Use correct ID
   }, [selectedChat?._id]);
@@ -209,6 +207,15 @@ const page = () => {
       e.preventDefault();
       handleSendMessage();
     }
+  };
+
+  const handleCloseChat = () => {
+    if (selectedChat?._id) {
+      const viewerId = user?.id;
+      closeChat({ chatId: selectedChat._id, viewerId });
+    }
+    setSelectedChat(null);
+    router.push("/job-seekerDashboard/conversations");
   };
 
   return (
@@ -249,13 +256,7 @@ const page = () => {
                 {/* Back button */}
                 <FaArrowLeft
                   className="cursor-pointer block md:hidden"
-                  onClick={() => {
-                    if (selectedChat?._id) {
-                      const viewerId = user?.id || recruiter?.id;
-                      closeChat({ chatId: selectedChat._id, viewerId });
-                    }
-                    setSelectedChat(null);
-                  }}
+                  onClick={handleCloseChat}
                 />
 
                 {/* Avatar */}
@@ -298,13 +299,7 @@ const page = () => {
               {/* 🔹 Right side (close button) */}
               <IoMdClose
                 className="cursor-pointer text-gray-600 text-2xl hover:text-red-500"
-                onClick={() => {
-                  if (selectedChat?._id) {
-                    const viewerId = user?.id || recruiter?.id;
-                    closeChat({ chatId: selectedChat._id, viewerId });
-                  }
-                  setSelectedChat(null);
-                }}
+                onClick={handleCloseChat}
               />
             </div>
 

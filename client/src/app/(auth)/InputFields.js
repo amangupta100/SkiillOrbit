@@ -133,7 +133,7 @@ export const recruiterProfileFields = [
   {
     label: "LinkedIn URL",
     name: "linkedin",
-    type: "text",
+    type: "url",
     placeholder: "Enter LinkedIn URL",
     required: true,
   },

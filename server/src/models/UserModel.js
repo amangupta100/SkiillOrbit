@@ -6,6 +6,24 @@ const userSchema = new mongoose.Schema(
     name: { type: String, required: true },
     email: { type: String, required: true, trim: true },
     password: { type: String, required: true },
+    savedOpportunities: [
+      {
+        itemId: { type: mongoose.Schema.Types.ObjectId }, // job or internship
+        itemType: { type: String, enum: ["Job", "Internship"] },
+        savedAt: { type: Date, default: Date.now },
+      },
+    ],
+    // --- Notifications
+    notifications: [
+      {
+        type: { type: String }, // e.g. "INTERVIEW_SCHEDULED", "INTERVIEW_REMINDER"
+        title: { type: String },
+        message: { type: String },
+        meta: { type: Object, default: {} }, // e.g. { interviewId, applicantId, interviewDate }
+        read: { type: Boolean, default: false },
+        createdAt: { type: Date, default: Date.now },
+      },
+    ],
 
     // Profile info
     summary: { type: String },

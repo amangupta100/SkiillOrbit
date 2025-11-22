@@ -1,7 +1,6 @@
 "use client";
 import React, { useState } from "react";
 import { userLoginFields } from "../../InputFields";
-import Link from "next/link";
 import see from "../../../../assests/eye.svg";
 import hide from "../../../../assests/eye-off.svg";
 import Image from "next/image";
@@ -11,13 +10,15 @@ import useAuthStore from "@/store/authStore";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import ButtonLoader from "@/utils/Loader";
+import ForgotPassword from "@/components/common/ForgotPassword";
 
 const page = () => {
   const [formData, setFormData] = useState({ email: "", password: "" });
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
-  const { setAuth, user } = useAuthStore();
+  const { setAuth } = useAuthStore();
   const router = useRouter();
+  const [forgotOtpConf, setforgotOtpCon] = useState(false);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -56,11 +57,13 @@ const page = () => {
           name: response.data.user.name,
         });
 
-        // ✅ Delay navigation (e.g., 1.5s)
-        setTimeout(() => {
-          router.push("/job-seekerDashboard");
-          router.refresh();
-        }, 600);
+        router.push(
+          `${
+            response.data.user.role === "job-seeker"
+              ? "/job-seekerDashboard"
+              : "/adminDashboard"
+          }`
+        );
       } else {
         toast.error(message);
       }
@@ -73,6 +76,7 @@ const page = () => {
 
   return (
     <div className="flex items-center justify-center">
+      {forgotOtpConf && <ForgotPassword close={() => setforgotOtpCon(false)} />}
       <div className="border-[1.6px] border-zinc-200 rounded-lg w-[98%] lg:w-[35%] md:w-[70%] px-5 min-h-fit py-6">
         <h1 className="text-xl font-semibold text-center">Login</h1>
 
@@ -124,6 +128,15 @@ const page = () => {
           >
             {loading && <ButtonLoader />} Login As Job-Seeker
           </Button>
+          <div className="mt-1">
+            <button
+              type="button"
+              onClick={() => setforgotOtpCon(true)}
+              className="text-blue-500 underline text-sm cursor-pointer"
+            >
+              Forgot Password?
+            </button>
+          </div>
         </form>
 
         <div className="mt-4">

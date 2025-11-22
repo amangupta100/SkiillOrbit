@@ -5,12 +5,7 @@ import Header from "@/components/navbar";
 export default function LayoutContent() {
   const pathname = usePathname();
 
-  const hideHeaderRoutes = [
-    "/job-seekerDashboard",
-    "/recruiterDashboard",
-    "/register/job-seeker",
-    "/register/recruiter",
-  ];
+  const hideHeaderRoutes = ["/job-seekerDashboard", "/recruiterDashboard"];
   const shouldHideHeader = hideHeaderRoutes.some((route) =>
     pathname.startsWith(route)
   );

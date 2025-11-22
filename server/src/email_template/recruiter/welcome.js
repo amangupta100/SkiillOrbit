@@ -53,12 +53,12 @@ const greetRecruiter = `
     <div class="container">
       <div class="header">
         <!-- ✅ Updated logo URL -->
-        <img src="https://res.cloudinary.com/ddad6pdhx/image/upload/v1758799527/logo_qzuuth.png" alt="SkillOrbit Logo" />
+        <img src="https://res.cloudinary.com/ddad6pdhx/image/upload/v1758799527/logo_qzuuth.png" alt="SkillsOrbit Logo" />
       </div>
       <div class="content">
         <p>Hi [Recruiter Name],</p>
         <p>
-          Welcome to <strong>SkillOrbit</strong> — your gateway to smarter, skill-first hiring.
+          Welcome to <strong>SkillsOrbit</strong> — your gateway to smarter, skill-based hiring.
         </p>
         <p>
           You can now:
@@ -72,10 +72,10 @@ const greetRecruiter = `
           We're excited to help you find top talent with less effort.
         </p>
         <!-- ✅ Updated CTA text -->
-        <a class="button" href="https://skillorbit.com/dashboard/recruiter">Post Your First Job</a>
+        <a class="button" href="https://skillsorbit.in/recruiterDashboard">Post Your First Job</a>
       </div>
       <div class="footer">
-        SkillOrbit Inc. — Smarter Hiring. Less Effort.
+        SkillsOrbit Inc. — Smarter Hiring. Less Effort.
       </div>
     </div>
   </body>

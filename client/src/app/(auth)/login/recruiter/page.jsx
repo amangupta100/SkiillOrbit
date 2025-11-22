@@ -11,6 +11,7 @@ import useRecruiterAuthStore from "@/store/recruiter/recruiterauthStore";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import ButtonLoader from "@/utils/Loader";
+import ForgotPassword from "@/components/common/ForgotPassword";
 
 const page = () => {
   const [formData, setFormData] = useState({
@@ -21,6 +22,7 @@ const page = () => {
   const [loading, setLoading] = useState(false);
   const { setAuth } = useRecruiterAuthStore();
   const router = useRouter();
+  const [forgotOtpConf, setforgotOtpCon] = useState(false);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -60,6 +62,7 @@ const page = () => {
 
   return (
     <div className="flex items-center justify-center">
+      {forgotOtpConf && <ForgotPassword close={() => setforgotOtpCon(false)} />}
       <div className="border-[1.6px] border-zinc-200 rounded-lg w-[98%] lg:w-[35%] md:w-[60%] px-5 min-h-fit py-6">
         <h1 className="text-xl font-semibold text-center">Recruiter Login</h1>
 
@@ -112,6 +115,15 @@ const page = () => {
           >
             {loading && <ButtonLoader />} Login Recruiter
           </Button>
+          <div className="mt-1">
+            <button
+              type="button"
+              onClick={() => setforgotOtpCon(true)}
+              className="text-blue-500 underline text-sm cursor-pointer"
+            >
+              Forgot Password?
+            </button>
+          </div>
         </form>
 
         <div className="mt-4">

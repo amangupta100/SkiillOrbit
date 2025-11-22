@@ -5,6 +5,8 @@ const {
   profileSetupEnd,
   clearAccRefCook,
   uploadDomainData,
+  checkEmailExist,
+  resetPassword,
 } = require("../../controllers/user/authController");
 const router = require("express").Router();
 const jwt = require("jsonwebtoken");
@@ -39,5 +41,8 @@ router.get("/getResumeData", authMiddleware, async (req, res, next) => {
 
   next();
 });
+
+router.post("/checkAccount", checkEmailExist);
+router.post("/reset_password", resetPassword);
 
 module.exports = router;

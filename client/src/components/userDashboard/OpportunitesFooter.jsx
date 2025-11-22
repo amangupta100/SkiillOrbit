@@ -34,7 +34,9 @@ export function OpportunityFooter({
           {nextBtn ? (
             loading ? (
               loadingTxt ? (
-                loadingTxt
+                <>
+                  <ButtonLoader /> {loadingTxt}
+                </>
               ) : (
                 <ButtonLoader color="black" />
               )

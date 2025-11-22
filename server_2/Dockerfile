@@ -8,6 +8,7 @@ WORKDIR /app
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 ENV DEBIAN_FRONTEND=noninteractive
+ENV TESSERACT_CMD=/usr/bin/tesseract
 
 # ---------- Install System Dependencies ----------
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -20,14 +21,15 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libxrender1 \
     libgl1 \
     libglib2.0-0 \
+    tesseract-ocr \
     && rm -rf /var/lib/apt/lists/*
 
 # ---------- Copy and Install Python Packages ----------
 COPY requirements.txt .
 RUN pip install --upgrade pip setuptools wheel && pip install --no-cache-dir -r requirements.txt
 
-# ---------- Copy Source Code ----------
-COPY . .
+# ---------- Copy Source Code and .env ----------
+COPY . . 
 
 # ---------- Expose Port ----------
 EXPOSE 8000

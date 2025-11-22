@@ -8,7 +8,7 @@ import { toast } from "sonner";
 import money from "@/assests/badge-indian-rupee.svg";
 import duration from "@/assests/clock.svg";
 import Clock from "@/assests/clock.svg";
-import { Filter, Info, Share2 } from "lucide-react";
+import { Info, Share2 } from "lucide-react";
 import { OpportunityFooter } from "@/components/userDashboard/OpportunitesFooter";
 import JobDetailsSkeleton from "@/components/common/Skeleton/JobDetails";
 import {

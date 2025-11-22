@@ -5,7 +5,6 @@ import Tooltip from "cal-heatmap/plugins/Tooltip";
 import Legend from "cal-heatmap/plugins/Legend";
 import API from "@/utils/interceptor";
 import { format, addYears } from "date-fns";
-import "cal-heatmap/cal-heatmap.css";
 import { toast } from "sonner";
 
 export default function ActivityHeatmap() {

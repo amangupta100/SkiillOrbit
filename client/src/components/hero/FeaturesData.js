@@ -19,7 +19,7 @@ export const FeaturesData = [
     id: 3,
     title: "Mock Interview",
     description:
-      "AI-driven mock interviews with SkillOrbit's Virtual Interviewer Jia — practice real-world questions before facing recruiters.",
+      "AI-driven mock interviews with SkillsOrbit's Virtual Interviewer Jia — practice real-world questions before facing recruiters.",
     image:
       "https://lottie.host/f8198917-a3c8-40b3-b014-4591deda34a4/PPPBtLDIvo.lottie",
   },

@@ -15,6 +15,7 @@ import API from "@/utils/interceptor";
 import { toast } from "sonner";
 import useChatStore from "@/store/recruiter/ChatStore";
 import { getChatSocket, getStatusSocket } from "@/lib/common/SocketClient";
+import useNotificationStore from "@/store/common/notificationStore";
 
 export default function DashboardLayout({ children }) {
   const checkAuth = useAuthStore((state) => state.checkAuth);
@@ -28,6 +29,12 @@ export default function DashboardLayout({ children }) {
   } = useAuthNetworkStatus();
   const { user } = useAuthStore();
   const chatStore = useChatStore();
+  const notifStore = useNotificationStore();
+
+  useEffect(() => {
+    if (!user?.id) return;
+    notifStore.fetchNotifications();
+  }, [user?.id]);
 
   // ---------------------------
   // 🧠 Sync current user

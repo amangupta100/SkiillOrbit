@@ -15,7 +15,6 @@ import { useProgressSidebarStore } from "@/store/test/useProgressSidebar";
 import { AlignEndHorizontal } from "lucide-react";
 import { IoIosNotificationsOutline } from "react-icons/io";
 import { useNotificationStore } from "@/store/test/useNotification";
-import { useRecordingStore } from "@/store/test/useRecordingStore";
 import useEvaluationStore from "@/store/test/useEvaluationState";
 import ButtonLoader from "@/utils/Loader";
 import { useRouter } from "next/navigation";
@@ -28,7 +27,6 @@ export default function AppHeader({ questions = 0, isInstructionShown }) {
   const { toggleSidebar } = useProgressSidebarStore();
   const { toggleContentVisibility } = useNotificationStore();
   const { setLoading, loading } = useEvaluationStore();
-  const { stopRecording } = useRecordingStore();
 
   useEffect(() => {
     const initializeTimer = () => {
@@ -111,12 +109,11 @@ export default function AppHeader({ questions = 0, isInstructionShown }) {
 
   const handleSubmit = async () => {
     setLoading(true);
-    router.push("/job-seekerDashboard/test/submit");
+    Cookies.remove("isInstructionsShown");
+    Cookies.remove("tt");
     setTimeout(() => {
-      Cookies.remove("isInstructionsShown");
-      Cookies.remove("tt");
-    }, 1500);
-    stopRecording();
+      router.push("/job-seekerDashboard/test/submit");
+    }, 800);
     setLoading(false);
   };
 

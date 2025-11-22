@@ -2,7 +2,7 @@
 import API from "@/utils/interceptor";
 import Image from "next/image";
 import { useParams } from "next/navigation";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import { FaFile, FaFilePdf, FaFileWord } from "react-icons/fa";
 
 const Page = () => {
@@ -10,6 +10,7 @@ const Page = () => {
   const [aplDet, setAplDet] = useState(null);
   const [loading, setLoading] = useState(true);
   const [showFullSummary, setShowFullSummary] = useState(false);
+  const hasFetched = useRef(false);
 
   const PdfIcon = FaFilePdf;
   const WordIcon = FaFileWord;
@@ -20,8 +21,11 @@ const Page = () => {
   const id = decoded.split("=")[1] || decoded;
 
   useEffect(() => {
+    if (hasFetched.current) return;
+
     const fetchDet = async () => {
       try {
+        hasFetched.current = true;
         const req = await API.post(
           `/recruiter/managePosting/sendAplDet&updateStatus/${opporId}/${id}`
         );
@@ -36,7 +40,7 @@ const Page = () => {
     };
 
     fetchDet();
-  }, []);
+  }, [opporId, id]); // Include deps to refetch if params change
 
   console.log(aplDet);
 

@@ -4,7 +4,7 @@ import React, { useState, useEffect } from "react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
 import Image from "next/image";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -91,7 +91,7 @@ const SearchResultItem = ({ applicant, onClick }) => {
   return (
     <div
       onClick={onClick}
-      className="flex items-center gap-3 p-4 cursor-pointer hover:bg-gray-50 transition-colors"
+      className="flex items-center gap-3 p-4 cursor-pointer hover:bg-gray-100 transition-colors"
     >
       <div className="w-10 h-10 rounded-full overflow-hidden flex-shrink-0 relative">
         {avatarSrc ? (
@@ -129,6 +129,8 @@ const ChatSidebar = () => {
   const [searchLoading, setSearchLoading] = useState(false);
   const [searchResults, setSearchResults] = useState([]);
   const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
 
   const { recruiter } = useRecruiterAuthStore();
   const { user } = useAuthStore();
@@ -156,6 +158,51 @@ const ChatSidebar = () => {
   useEffect(() => {
     fetchChatList();
   }, [fetchChatList]);
+
+  // 🟢 Sync selected chat with URL pathname and search params
+  useEffect(() => {
+    const chatIdFromUrl = searchParams.get("chat_id");
+
+    if (pathname === "/recruiterDashboard/conversations" && !chatIdFromUrl) {
+      if (selectedChat) {
+        setSelectedChat(null);
+      }
+      return;
+    }
+
+    if (chatIdFromUrl && chats.length > 0) {
+      const chat = chats.find((c) => c._id === chatIdFromUrl);
+      if (chat && selectedChat?._id !== chat._id) {
+        handleChatSelect(chat); // Reuse the select logic to fetch messages
+      }
+    }
+  }, [pathname, searchParams, chats, selectedChat]);
+
+  // 🔹 Shared logic for selecting a chat (fetch messages, open socket, etc.)
+  const handleChatSelect = async (chat) => {
+    setSelectedChat(chat);
+    useChatStore.getState().setMessageLoading(true);
+
+    try {
+      const { data } = await API.get(
+        `/common/conversation/messages/${chat._id}`
+      );
+      if (data.success) {
+        useChatStore.getState().setMessages(chat._id, data.messages);
+
+        const currentUserId =
+          useAuthStore.getState().user?.id ||
+          useRecruiterAuthStore.getState().recruiter?.id;
+
+        // ✅ Call already-defined function
+        openChat({ chatId: chat._id, viewerId: currentUserId });
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      useChatStore.getState().setMessageLoading(false);
+    }
+  };
 
   // 🟣 Handle search
   useEffect(() => {
@@ -185,27 +232,75 @@ const ChatSidebar = () => {
   }, [search]);
 
   // 🔹 Handle selecting search result
-  const handleSearchResultClick = (applicant) => {
-    const tempId = `temp_${applicant.user._id}`;
+  const handleSearchResultClick = async (applicant) => {
+    try {
+      const receiverId = applicant.user._id;
+      const existingChat = chats.find((chat) => chat.userId === receiverId);
 
-    const chat = {
-      _id: tempId, // ✅ use consistent key name
-      name: applicant.user.name,
-      avatar: applicant.user.image?.data,
-      user: applicant.user,
-      online: applicant.user.onlineStatus || false,
-      lastseen: applicant.user.lastActiveDisplay || "Unknown",
-    };
+      let chat;
+      let chatId;
 
-    // ✅ Access old chats using get()
-    const prevChats = useChatStore.getState().chats || [];
-    const updatedChats = [...prevChats.filter((c) => c._id !== tempId), chat];
+      if (existingChat) {
+        // Use existing chat
+        chatId = existingChat._id;
+        // Update with latest applicant data if needed (e.g., online status)
+        chat = {
+          ...existingChat,
+          name: applicant.user.name,
+          avatar: applicant.user.image?.data,
+          user: applicant.user,
+          online: applicant.user.onlineStatus || false,
+          lastseen: applicant.user.lastActiveDisplay || "Unknown",
+        };
+      } else {
+        // Create new conversation
+        const currentUserId = recruiter?.id || user?.id;
+        const currentUserModel = recruiter ? "Recruiter" : "User";
+        const receiverModel = "User"; // Assuming applicants are Users
 
-    useChatStore.getState().setChats(updatedChats);
-    useChatStore.getState().setSelectedChat(chat);
+        // Call backend to get or create chat
+        const { data } = await API.post("/common/conversation/GetPrivateChat", {
+          senderId: currentUserId,
+          senderModel: currentUserModel,
+          receiverId,
+          receiverModel,
+        });
 
-    setSearch("");
-    setSearchResults([]);
+        if (!data.success) {
+          toast.error(data.message || "Failed to start chat");
+          return;
+        }
+
+        chatId = data.chatId;
+        chat = {
+          _id: chatId,
+          name: applicant.user.name,
+          avatar: applicant.user.image?.data,
+          user: applicant.user,
+          userId: receiverId, // For reference
+          online: applicant.user.onlineStatus || false,
+          lastseen: applicant.user.lastActiveDisplay || "Unknown",
+          // Add other fields as needed, e.g., from a fetch if more details required
+        };
+
+        // Add to chats if new
+        const prevChats = useChatStore.getState().chats || [];
+        const updatedChats = [
+          ...prevChats.filter((c) => c._id !== chatId),
+          chat,
+        ];
+        useChatStore.getState().setChats(updatedChats);
+      }
+
+      // Select and navigate (common for both cases)
+      handleChatSelect(chat);
+      router.push(`/recruiterDashboard/conversations?chat_id=${chatId}`);
+    } catch (err) {
+      toast.error("Error starting chat: " + err.message);
+    } finally {
+      setSearch("");
+      setSearchResults([]);
+    }
   };
 
   // 🔹 Avatar setup
@@ -262,42 +357,27 @@ const ChatSidebar = () => {
               </DropdownMenuItem>
               <DropdownMenuSeparator />
 
-              {recruiter ? (
-                <>
-                  <DropdownMenuItem
-                    onClick={() => router.push("/recruiterDashboard")}
-                  >
-                    Dashboard
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => router.push("/my-postings")}>
-                    My Postings
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => router.push("/settings")}>
-                    Settings
-                  </DropdownMenuItem>
-                </>
-              ) : (
-                <>
-                  <DropdownMenuItem
-                    onClick={() => router.push("/job-seekerDashboard")}
-                  >
-                    Dashboard
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    onClick={() => router.push("/applied-jobs")}
-                  >
-                    My Applications
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => router.push("/settings")}>
-                    Settings
-                  </DropdownMenuItem>
-                </>
-              )}
+              <>
+                <DropdownMenuItem
+                  onClick={() =>
+                    router.push(
+                      `/${
+                        recruiter ? "recruiterDashboard" : "job-seekerDashboard"
+                      }`
+                    )
+                  }
+                >
+                  Dashboard
+                </DropdownMenuItem>
+              </>
             </DropdownMenuContent>
           </DropdownMenu>
 
           <Button
-            onClick={() => router.back()}
+            onClick={() => {
+              setSelectedChat(null);
+              router.push("/recruiterDashboard");
+            }}
             variant="outline"
             className="text-sm font-medium border-[1.5px]"
           >
@@ -344,7 +424,7 @@ const ChatSidebar = () => {
             >
               {searchLoading ? (
                 <div className="space-y-3 p-4">
-                  {[...Array(5)].map((_, i) => (
+                  {[...Array(8)].map((_, i) => (
                     <div key={i} className="flex items-start gap-4">
                       <Skeleton className="w-10 h-10 rounded-full bg-gray-300" />
                       <div className="flex-1 space-y-2">
@@ -380,7 +460,7 @@ const ChatSidebar = () => {
       <ScrollArea className="flex-1 modern-scroll overflow-y-auto">
         {loading ? (
           <div className="p-4 space-y-3">
-            {[...Array(6)].map((_, i) => (
+            {[...Array(10)].map((_, i) => (
               <div key={i} className="flex items-center gap-3">
                 <Skeleton className="w-10 h-10 rounded-full bg-gray-300" />
                 <div className="flex-1 space-y-1">
@@ -397,30 +477,13 @@ const ChatSidebar = () => {
               chat={chat}
               unreadMessCount={unreadCount}
               isSelected={selectedChat?._id === chat._id}
-              onClick={async () => {
-                setSelectedChat(chat);
-                useChatStore.getState().setMessageLoading(true);
-
-                try {
-                  const { data } = await API.get(
-                    `/common/conversation/messages/${chat._id}`
-                  );
-                  if (data.success) {
-                    useChatStore
-                      .getState()
-                      .setMessages(chat._id, data.messages);
-
-                    const currentUserId =
-                      useAuthStore.getState().user?.id ||
-                      useRecruiterAuthStore.getState().recruiter?.id;
-
-                    // ✅ Call already-defined function
-                    openChat({ chatId: chat._id, viewerId: currentUserId });
-                  }
-                } catch (err) {
-                } finally {
-                  useChatStore.getState().setMessageLoading(false);
-                }
+              onClick={() => {
+                handleChatSelect(chat);
+                router.push(
+                  `/${
+                    recruiter ? "recruiterDashboard" : "job-seekerDashboard"
+                  }/conversations?chat_id=${chat._id}`
+                );
               }}
             />
           ))

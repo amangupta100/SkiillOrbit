@@ -2,7 +2,8 @@ const applicationStatusTemplate = (
   userName,
   jobRole,
   status,
-  recruiterName
+  recruiterName,
+  companyName
 ) => `
 <!DOCTYPE html>
 <html lang="en">
@@ -75,7 +76,7 @@ const applicationStatusTemplate = (
     </div>
     <div class="content">
       <h2>Hi ${userName},</h2>
-      <p>We wanted to update you about your application for the role of <strong>${jobRole}</strong>.</p>
+      <p>We wanted to update you about your application for the role of <strong>${jobRole}</strong> at ${companyName}.</p>
       <div class="status">
         Current Status: ${status}
       </div>

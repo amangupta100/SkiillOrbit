@@ -20,8 +20,8 @@ export default function ProfileSetup() {
     aboutCompany: "",
     companyTagline: "",
     companyType: "",
+    foundyear: "", // Add this
     headquarterLocation: "",
-
     twitter: "",
   });
   const [loading, setLoading] = useState(false);
@@ -92,22 +92,80 @@ export default function ProfileSetup() {
     }
   };
 
-  const isFormComplete = () => {
-    // Check all required fields are filled
+  // Regex patterns for URL validation
+  const LINKEDIN_REGEX =
+    /^https?:\/\/(www\.)?linkedin\.com\/(in\/|company\/|school\/|groups\/)?[a-zA-Z0-9\-._\/]+$/i;
+  const TWITTER_REGEX = /^https?:\/\/(twitter\.com|x\.com)\/[a-zA-Z0-9_]+$/i;
+  const GENERAL_URL_REGEX =
+    /^https?:\/\/(?:www\.)?[-a-zA-Z0-9@:%._\+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b(?:[-a-zA-Z0-9()@:%_\+.~#?&\/\/=]*)$/i;
+
+  const isValidUrl = (url, fieldName) => {
+    if (!url || !url.trim()) return false;
+    const trimmedUrl = url.trim();
+    switch (fieldName) {
+      case "linkedin":
+        return LINKEDIN_REGEX.test(trimmedUrl);
+      case "twitter":
+        return TWITTER_REGEX.test(trimmedUrl);
+      case "companyWebsite":
+        return GENERAL_URL_REGEX.test(trimmedUrl);
+      default:
+        return false;
+    }
+  };
+
+  const getFormErrors = () => {
     const requiredFields = recruiterProfileFields.filter(
       (field) => field.required
     );
-    const isFieldsComplete = requiredFields.every((field) =>
-      formData[field.name]?.trim()
-    );
+    const errors = [];
 
-    // Check logo is uploaded
-    const isLogoUploaded = !!logoPreview;
+    // Check required fields
+    requiredFields.forEach((field) => {
+      const value = formData[field.name]?.toString().trim();
+      if (!value) {
+        errors.push(`${field.label} is required`);
+        return;
+      }
+      if (field.type === "number") {
+        if (isNaN(Number(value))) {
+          errors.push(`${field.label} must be a valid number`);
+        }
+      }
+      if (field.type === "url") {
+        if (!isValidUrl(value, field.name)) {
+          const platform =
+            field.name === "linkedin" ? "valid LinkedIn" : "valid";
+          errors.push(`${field.label} must be a ${platform} URL`);
+        }
+      }
+    });
 
-    return isFieldsComplete && isLogoUploaded;
+    // Check logo
+    if (!logoPreview) {
+      errors.push("Company logo upload is required");
+    }
+
+    // Optional Twitter URL validation (only if filled, and add to errors if invalid)
+    if (formData.twitter && !isValidUrl(formData.twitter, "twitter")) {
+      errors.push("Twitter URL must be valid (if provided)");
+    }
+
+    return errors;
+  };
+
+  const isFormComplete = () => {
+    const errors = getFormErrors();
+    return errors.length === 0;
   };
 
   const fileToBase64 = (file) => {
+    // FIXED: Early reject if no valid file
+    if (!file || !(file instanceof File || file instanceof Blob)) {
+      return Promise.reject(
+        new Error("Invalid file: Not a Blob or File object")
+      );
+    }
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
       reader.readAsDataURL(file);
@@ -122,8 +180,15 @@ export default function ProfileSetup() {
       setLoading(true);
 
       let payload = { ...formData };
-      // ab base64 string add kar do
-      const base64String = await fileToBase64(logoFile);
+      // FIXED: Handle case where logoFile is null (from localStorage preview) but preview exists
+      let base64String;
+      if (logoFile) {
+        base64String = await fileToBase64(logoFile);
+      } else if (logoPreview) {
+        base64String = logoPreview; // Already base64 from localStorage
+      } else {
+        throw new Error("No logo available for upload");
+      }
       payload.image = base64String;
 
       const response = await API.post("/recruiter/auth/register", payload);
@@ -137,7 +202,9 @@ export default function ProfileSetup() {
           name: formData.name,
         };
         await API.post("/recruiter/sendMail/greetRec", greetRec);
-        localStorage.clear("RecruiterData");
+        // FIXED: Clear both localStorage keys properly
+        localStorage.removeItem("RecruiterData");
+        localStorage.removeItem("RecruiterLogo");
       } else toast.warning(message);
     } catch (err) {
       toast.error(err.message || "Registration failed. Please try again.");
@@ -145,6 +212,8 @@ export default function ProfileSetup() {
       setLoading(false);
     }
   };
+
+  const errors = getFormErrors();
 
   return (
     <div className="py-10 max-w-2xl sm:max-w-6xl border-[1.6px] border-zinc-200 rounded-lg my-20 sm:mx-auto px-4">
@@ -256,13 +325,24 @@ export default function ProfileSetup() {
                 </div>
               ))}
             </div>
-            <div className="flex justify-center">
+            <div className="flex flex-col">
               <Button
                 disabled={!isFormComplete() || loading}
                 className="bg-black text-white text-base w-full"
               >
                 {loading ? "Processing..." : "Complete Profile"}
               </Button>
+              {errors.length > 0 && (
+                <div className="mt-2 w-full">
+                  <ul className="text-red-500 text-sm space-y-1 max-w-md mx-auto">
+                    {errors.map((error, index) => (
+                      <li key={index} className="flex items-center">
+                        • {error}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
             </div>
           </form>
         </div>

@@ -1,6 +1,7 @@
 # Core
 fastapi==0.116.1
 uvicorn==0.35.0
+
 python-dotenv==1.0.1
 pydantic==2.11.7
 python-multipart==0.0.20
@@ -45,3 +46,6 @@ pillow==10.3.0
 tqdm==4.67.1
 pandas==1.5.3
 typing-extensions==4.12.2
+
+
+websockets
