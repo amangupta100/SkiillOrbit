@@ -282,7 +282,7 @@ const page = () => {
                 </div>
 
                 {/* Name + Status */}
-                <div className="flex flex-col">
+                <div className="flex flex-col ml-3">
                   <h1 className="text-lg font-semibold leading-tight">
                     {selectedChat?.name}
                   </h1>

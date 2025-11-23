@@ -6,6 +6,7 @@ import Legend from "cal-heatmap/plugins/Legend";
 import API from "@/utils/interceptor";
 import { format, addYears } from "date-fns";
 import { toast } from "sonner";
+import "cal-heatmap/cal-heatmap.css";
 
 export default function ActivityHeatmap() {
   const calRef = useRef(null);
