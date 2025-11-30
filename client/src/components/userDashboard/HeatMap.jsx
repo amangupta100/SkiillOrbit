@@ -5,7 +5,7 @@ import API from "@/utils/interceptor";
 import { toast } from "sonner";
 
 export default function ActivityHeatmap() {
-  const svgRef = useRef(null);
+  const containerRef = useRef(null); // Renamed: Now refs the <div>
   const tooltipRef = useRef(null);
   const [loading, setLoading] = useState(true);
 
@@ -34,18 +34,22 @@ export default function ActivityHeatmap() {
   }
 
   function drawHeatmap(data) {
-    const svg = d3.select(svgRef.current);
-    svg.selectAll("*").remove();
+    const container = d3.select(containerRef.current);
+    container.selectAll("*").remove(); // Clear any previous SVG
+
+    // D3 appends the SVG here (client-only)
+    const svg = container.append("svg"); // No ref needed now
 
     /* ----------  constants  ---------- */
     const cellSize = 15;
     const cellGap = 3;
-    const monthGap = 12; // visual gap between months
-    const topPad = 20; // top white-space
-    const leftPad = 40; // left white-space
-    const labelGap = 15; // vertical space between grid and month labels
+    const monthGap = 12;
+    const topPad = 20;
+    const leftPad = 40;
+    const labelGap = 15;
 
     /* ----------  date range  ---------- */
+    if (data.length === 0) return; // Early exit for empty data (avoids NaN errors)
     const startDate = d3.min(data, (d) => d.date);
     const endDate = d3.max(data, (d) => d.date);
     const days = d3.timeDays(startDate, d3.timeDay.offset(endDate, 1));
@@ -61,14 +65,13 @@ export default function ActivityHeatmap() {
       .range(["#e5e7eb", "#22c55e"]);
 
     /* ----------  week index with month-based gap offset  ---------- */
-    const monthStarts = d3.timeMonths(startDate, endDate); // 1st of every month in view
+    const monthStarts = d3.timeMonths(startDate, endDate);
     const weekIndexWithGaps = [];
     let offsetAcc = 0;
 
     monthStarts.forEach((mon, i) => {
       const weekIdx = d3.timeWeek.count(startDate, mon);
       weekIndexWithGaps.push({ weekIndex: weekIdx, offset: offsetAcc });
-      // add gap once per month (after the last week of that month)
       if (i < monthStarts.length - 1) offsetAcc += monthGap;
     });
 
@@ -86,7 +89,7 @@ export default function ActivityHeatmap() {
       totalWeeks * (cellSize + cellGap) +
       weekOffset(totalWeeks - 1) +
       20;
-    const height = topPad + 7 * (cellSize + cellGap) + labelGap + 20; // room for labels below
+    const height = topPad + 7 * (cellSize + cellGap) + labelGap + 20;
     svg.attr("width", width).attr("height", height);
 
     /* ----------  draw day cells  ---------- */
@@ -126,7 +129,7 @@ export default function ActivityHeatmap() {
         d3.select(tooltipRef.current).style("visibility", "hidden")
       );
 
-    /* ----------  month labels (below their own columns)  ---------- */
+    /* ----------  month labels  ---------- */
     const labelLayer = svg
       .append("g")
       .attr(
@@ -135,7 +138,6 @@ export default function ActivityHeatmap() {
       );
 
     monthStarts.forEach((mon) => {
-      // first and last week that contain days of this month
       const firstWeek = d3.timeWeek.count(startDate, mon);
       const lastWeek =
         d3.timeWeek.count(startDate, d3.timeMonth.offset(mon, 1)) - 1;
@@ -162,7 +164,8 @@ export default function ActivityHeatmap() {
         <div className="animate-pulse h-40 bg-gray-200 rounded"></div>
       ) : (
         <div className="overflow-x-auto">
-          <svg ref={svgRef}></svg>
+          <div ref={containerRef} />{" "}
+          {/* Changed: Empty div for D3 to append SVG */}
         </div>
       )}
 
