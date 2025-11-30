@@ -1,46 +1,57 @@
 "use client";
+
 import * as d3 from "d3";
 import { useEffect, useRef, useState } from "react";
 import API from "@/utils/interceptor";
 import { toast } from "sonner";
 
 export default function ActivityHeatmap() {
-  const containerRef = useRef(null); // Renamed: Now refs the <div>
+  const containerRef = useRef(null);
   const tooltipRef = useRef(null);
-  const [loading, setLoading] = useState(true);
 
+  const [loading, setLoading] = useState(true);
+  const [heatmapData, setHeatmapData] = useState([]);
+
+  // STEP 1: Fetch data (but DO NOT draw yet)
   useEffect(() => {
+    async function fetchData() {
+      try {
+        const res = await API.get(
+          "/job-seeker/activity/heatmap?days=365&mode=future"
+        );
+
+        const raw = res.data?.data || [];
+
+        const formatted = raw.map((d) => ({
+          date: new Date(d.date),
+          value: d.count,
+        }));
+
+        setHeatmapData(formatted);
+      } catch (err) {
+        console.error("Heatmap fetch error:", err);
+        toast.error("Failed to load activity heatmap");
+      } finally {
+        setLoading(false);
+      }
+    }
+
     fetchData();
   }, []);
 
-  async function fetchData() {
-    try {
-      const res = await API.get(
-        "/job-seeker/activity/heatmap?days=365&mode=future"
-      );
-      const raw = res.data?.data || [];
-
-      const data = raw.map((d) => ({
-        date: new Date(d.date),
-        value: d.count,
-      }));
-
-      drawHeatmap(data);
-    } catch (err) {
-      toast.error(err.message);
-    } finally {
-      setLoading(false);
+  // STEP 2: Draw ONLY after loading is false AND ref exists
+  useEffect(() => {
+    if (!loading && containerRef.current && heatmapData.length > 0) {
+      drawHeatmap(heatmapData);
     }
-  }
+  }, [loading, heatmapData]);
 
   function drawHeatmap(data) {
     const container = d3.select(containerRef.current);
-    container.selectAll("*").remove(); // Clear any previous SVG
+    container.selectAll("*").remove();
 
-    // D3 appends the SVG here (client-only)
-    const svg = container.append("svg"); // No ref needed now
+    const svg = container.append("svg");
 
-    /* ----------  constants  ---------- */
     const cellSize = 15;
     const cellGap = 3;
     const monthGap = 12;
@@ -48,23 +59,20 @@ export default function ActivityHeatmap() {
     const leftPad = 40;
     const labelGap = 15;
 
-    /* ----------  date range  ---------- */
-    if (data.length === 0) return; // Early exit for empty data (avoids NaN errors)
     const startDate = d3.min(data, (d) => d.date);
     const endDate = d3.max(data, (d) => d.date);
     const days = d3.timeDays(startDate, d3.timeDay.offset(endDate, 1));
 
-    /* ----------  value & colour  ---------- */
     const dateMap = new Map(
       data.map((d) => [d3.timeFormat("%Y-%m-%d")(d.date), d.value])
     );
+
     const maxVal = d3.max(data, (d) => d.value) || 1;
     const color = d3
       .scaleLinear()
       .domain([0, maxVal])
       .range(["#e5e7eb", "#22c55e"]);
 
-    /* ----------  week index with month-based gap offset  ---------- */
     const monthStarts = d3.timeMonths(startDate, endDate);
     const weekIndexWithGaps = [];
     let offsetAcc = 0;
@@ -82,17 +90,17 @@ export default function ActivityHeatmap() {
       return found?.offset || 0;
     };
 
-    /* ----------  svg size  ---------- */
     const totalWeeks = d3.timeWeek.count(startDate, endDate);
     const width =
       leftPad +
       totalWeeks * (cellSize + cellGap) +
       weekOffset(totalWeeks - 1) +
       20;
+
     const height = topPad + 7 * (cellSize + cellGap) + labelGap + 20;
+
     svg.attr("width", width).attr("height", height);
 
-    /* ----------  draw day cells  ---------- */
     const g = svg
       .append("g")
       .attr("transform", `translate(${leftPad},${topPad})`);
@@ -116,6 +124,7 @@ export default function ActivityHeatmap() {
       .on("mouseover", (e, d) => {
         const key = d3.timeFormat("%Y-%m-%d")(d);
         const val = dateMap.get(key) || 0;
+
         d3.select(tooltipRef.current)
           .style("visibility", "visible")
           .text(`${val > 0 ? "Some" : "No"} activities on ${key}`);
@@ -125,11 +134,10 @@ export default function ActivityHeatmap() {
           .style("top", `${e.pageY - 40}px`)
           .style("left", `${e.pageX + 10}px`);
       })
-      .on("mouseout", () =>
-        d3.select(tooltipRef.current).style("visibility", "hidden")
-      );
+      .on("mouseout", () => {
+        d3.select(tooltipRef.current).style("visibility", "hidden");
+      });
 
-    /* ----------  month labels  ---------- */
     const labelLayer = svg
       .append("g")
       .attr(
@@ -164,8 +172,7 @@ export default function ActivityHeatmap() {
         <div className="animate-pulse h-40 bg-gray-200 rounded"></div>
       ) : (
         <div className="overflow-x-auto">
-          <div ref={containerRef} />{" "}
-          {/* Changed: Empty div for D3 to append SVG */}
+          <div ref={containerRef} className="min-h-[180px]" />
         </div>
       )}
 
