@@ -7,40 +7,49 @@ const testSchema = new mongoose.Schema(
       ref: "User",
       required: true,
     },
-    questions: {
-      type: [Object],
-    },
+
+    // NEW — store ONLY question IDs
+    questions: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "Question",
+      },
+    ],
+
     skills: {
       type: [String],
       required: true,
     },
-    totalQuestions: {
-      type: Number,
-      required: true,
-    },
-    duration: {
-      type: String,
-      required: true,
-    },
+
+    totalQuestions: Number,
+    duration: String,
+
+    startedAt: Date,
+    submittedAt: Date,
+
+    testCompleted: Boolean,
+
+    SuspiciousFlags: [String],
+
+    // NEW — user answer object
+    uanswer: [
+      {
+        code: String, // ✔ only user code
+        isCorrect: Boolean, // ✔ correctness
+      },
+    ],
+
+    // NEW — correct answers + reason
+    cAnswer: [
+      {
+        correctAnswer: String, // ✔ AI generated correct solution
+        reason: String, // ✔ AI explanation
+      },
+    ],
+
     correctCount: Number,
     incorrectCount: Number,
     scorePercent: Number,
-    startedAt: {
-      type: Date,
-      required: true,
-    },
-    submittedAt: {
-      type: Date,
-    },
-    testCompleted: Boolean,
-    SuspiciousFlags: [String],
-    uanswer: {
-      type: [Object],
-    },
-    cAnswer: {
-      type: [Object], // each object contains { correctAnswer, reason }
-      default: [],
-    },
   },
   {
     timestamps: true,

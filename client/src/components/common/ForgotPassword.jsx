@@ -24,7 +24,6 @@ const ForgotPassword = ({ close }) => {
 
   const [uOTP, setuOTP] = useState("");
   const [otpValidated, setOtpValidated] = useState(false);
-  const [actualOTP, setactualOTP] = useState(false);
 
   const [timer, setTimer] = useState(0); // seconds
 
@@ -42,12 +41,9 @@ const ForgotPassword = ({ close }) => {
 
   // Start countdown when OTP sent
   useEffect(() => {
-    if (!otpSent || otpValidated) return;
-    if (timer <= 0) return;
+    if (!otpSent || otpValidated || timer <= 0) return;
 
-    const interval = setInterval(() => {
-      setTimer((t) => t - 1);
-    }, 1000);
+    const interval = setInterval(() => setTimer((t) => t - 1), 1000);
 
     return () => clearInterval(interval);
   }, [otpSent, timer, otpValidated]);
@@ -80,6 +76,7 @@ const ForgotPassword = ({ close }) => {
   const handleSendOTP = async () => {
     try {
       setLoading(true);
+      setuOTP("");
 
       const resp = await API.post("/sendOTP", {
         email,
@@ -87,28 +84,26 @@ const ForgotPassword = ({ close }) => {
       });
 
       if (resp.data.success) {
+        toast.success("OTP sent");
         setOtpSent(true);
-        setactualOTP(resp.data.otp);
         setTimer(300); // 5 minutes
       } else {
         toast.error(resp.data.message);
       }
     } catch (err) {
-      toast.error(err.message);
+      toast.error("Failed to send OTP");
     } finally {
       setLoading(false);
     }
   };
 
-  // ⭐ RESEND OTP FUNCTION
+  // ⭐ RESEND OTP — allowed ONLY when timer hits 0
   const handleResendOTP = async () => {
+    if (timer > 0) return;
+
     try {
       setLoading(true);
-
-      // clear OTP input and UI state
       setuOTP("");
-      setOtpValidated(false);
-      setOtpSent(true);
 
       const resp = await API.post("/sendOTP", {
         email,
@@ -116,8 +111,8 @@ const ForgotPassword = ({ close }) => {
       });
 
       if (resp.data.success) {
-        setTimer(300); // restart timer
         toast.success("OTP resent successfully");
+        setTimer(300); // reset 5 min
       } else {
         toast.error(resp.data.message);
       }
@@ -128,7 +123,7 @@ const ForgotPassword = ({ close }) => {
     }
   };
 
-  // STEP 3 — Verify OTP
+  // STEP 3 — Verify OTP (no OTP exposed)
   const handleVerifyOTP = async (e) => {
     e.preventDefault();
 
@@ -141,16 +136,16 @@ const ForgotPassword = ({ close }) => {
         email,
         otp: uOTP,
         forgotPassword: true,
-        token: actualOTP,
       });
 
       if (resp.data.success) {
+        toast.success("OTP verified");
         setOtpValidated(true);
       } else {
         toast.error(resp.data.message);
       }
     } catch (err) {
-      toast.error(err.message);
+      toast.error("Verification failed");
     } finally {
       setLoading(false);
     }
@@ -176,7 +171,7 @@ const ForgotPassword = ({ close }) => {
         toast.error(resp.data.message);
       }
     } catch (err) {
-      toast.error(err.message);
+      toast.error("Reset failed");
     } finally {
       setLoading(false);
     }
@@ -236,9 +231,8 @@ const ForgotPassword = ({ close }) => {
         {otpSent && !otpValidated && (
           <>
             <form onSubmit={handleVerifyOTP}>
-              <h1 className="mt-6">Enter OTP send to {email}</h1>
+              <h1 className="mt-6">Enter OTP sent to {email}</h1>
 
-              {/* Countdown */}
               <div className="text-gray-500 text-sm my-2">
                 OTP expires in:{" "}
                 <span className="font-semibold">
@@ -247,13 +241,10 @@ const ForgotPassword = ({ close }) => {
                 </span>
               </div>
 
-              {/* Expired message + Resend Button */}
               {timer <= 0 && (
-                <div className="mt-2">
-                  <p className="text-red-500 mb-1 text-sm">
-                    OTP expired — request a new one.
-                  </p>
-                </div>
+                <p className="text-red-500 text-sm mt-1">
+                  OTP expired — request a new one.
+                </p>
               )}
 
               <InputOTP
@@ -272,9 +263,19 @@ const ForgotPassword = ({ close }) => {
                 </InputOTPGroup>
               </InputOTP>
 
+              {/* --- RESEND OTP BUTTON --- */}
+              <button
+                type="button"
+                disabled={loading || timer > 0}
+                onClick={handleResendOTP}
+                className="text-blue-500 underline text-sm mt-2 disabled:opacity-40"
+              >
+                {loading ? <ButtonLoader /> : "Resend OTP"}
+              </button>
+
               <button
                 disabled={loading || uOTP.length < 6 || timer <= 0}
-                className="mt-6 w-full py-3 flex items-center justify-center gap-3 bg-black text-white rounded-md"
+                className="mt-6 w-full py-3 flex items-center justify-center gap-3 bg-black text-white rounded-md disabled:bg-gray-400"
               >
                 {loading ? <ButtonLoader color="white" /> : "Verify OTP"}
               </button>

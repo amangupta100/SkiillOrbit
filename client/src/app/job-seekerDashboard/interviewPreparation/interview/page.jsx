@@ -160,10 +160,15 @@ Then, continue the interview by asking the next general question relevant to the
   };
 
   // 🔑 Speech effect
+  // In InterviewPrep.jsx, update the useEffect for speak:
   useEffect(() => {
     if (pendingSpeech && !loading) {
       speak(pendingSpeech, {
         onPhonemes: (phonemes) => setPhonemeTimings(phonemes),
+        onEnd: () => {
+          setPhonemeTimings([]); // ✅ Clear timings on actual end
+          // Optional: Force neutral in avatar if needed
+        },
       });
       setPendingSpeech(null);
       setLoading(false);
@@ -255,6 +260,7 @@ Then, continue the interview by asking the next general question relevant to the
         <InterviewerAvatarWrapper
           isSpeaking={speaking}
           phonemeTimings={phonemeTimings}
+          onSpeakComplete={() => setPhonemeTimings([])} // Fallback clear
         />
       </div>
 
@@ -280,7 +286,7 @@ Then, continue the interview by asking the next general question relevant to the
 
       <NavigationGuard
         EndIntervSession={handleEndSession}
-        message="Your interview progress will be lost if you navigate away."
+        message="Your session will be lost if you navigate away."
       />
     </div>
   );

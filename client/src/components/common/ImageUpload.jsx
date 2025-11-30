@@ -76,34 +76,52 @@ export const ImageUpload = ({ onChange, onClose, data, imageUpload }) => {
       toast.error("Please select an image first");
       return;
     }
-    if (isValidImageType(files[0])) {
-      setLoading(true);
-      const base64String = await fileToBase64(files[0]);
-      const resp = await API.post("/job-seeker/profile/uploadProfileImage", {
-        image: base64String,
-        filename: files[0].name,
-        filetype: files[0].type,
-      });
-      const { success: succ, message, userDet } = resp.data;
-      if (succ) {
-        if (data && data == "Register") {
-          const res = await API.post("/auth/profileSetEnd");
-          const { success: succ, message } = res.data;
-          if (!succ) return toast.error(message);
-          let dataSended = {
-            name: userDet.name,
-            email: userDet.email,
-          };
-          await API.post("/sendMail/greetUser", dataSended);
-          window.location.href = "/job-seekerDashboard";
-        }
 
-        if (data && data === "UploadAnother") {
-          onClose();
-        }
-        return toast.success(message);
-      } else return toast.error(message);
-    } else return toast.error("Please select a valid image file first");
+    if (!isValidImageType(files[0])) {
+      toast.error("Please select a valid image file");
+      return;
+    }
+
+    const formData = new FormData();
+    formData.append("file", files[0]);
+
+    setLoading(true);
+
+    try {
+      const resp = await API.post(
+        "/job-seeker/profile/uploadProfileImage",
+        formData
+      );
+
+      const { success, message, profUrl } = resp.data;
+
+      if (!success) {
+        toast.error(message);
+        return;
+      }
+
+      // Case 1: Registration flow
+      if (data === "Register") {
+        window.location.href = "/job-seekerDashboard";
+        return;
+      }
+
+      // Case 2: Upload Another
+      if (data === "UploadAnother") {
+        setFiles([]);
+        toast.success(message);
+        return;
+      }
+
+      // Default close
+      onClose?.();
+      toast.success(message);
+    } catch (error) {
+      console.error("Upload error:", error);
+      toast.error("Upload failed. Please try again.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   const fileToBase64 = (file) => {
@@ -116,6 +134,7 @@ export const ImageUpload = ({ onChange, onClose, data, imageUpload }) => {
   };
 
   const handleUploadAnother = () => {
+    // Reset files and trigger new selection
     setFiles([]);
     handleClick();
   };
@@ -137,7 +156,7 @@ export const ImageUpload = ({ onChange, onClose, data, imageUpload }) => {
             onClick={onClose}
             className="absolute -top-0 z-[9999] -right-0 p-2 rounded-full cursor-pointer"
           >
-            <IconX className={` w-6 h-6}`} />
+            <IconX className={` w-6 h-6`} />
           </button>
         )}
 
@@ -233,7 +252,8 @@ export const ImageUpload = ({ onChange, onClose, data, imageUpload }) => {
                         whileHover={{ scale: 1.02 }}
                         whileTap={{ scale: 0.98 }}
                         onClick={handleUpload}
-                        className="flex-1 py-3 px-4 flex justify-center items-center cursor-pointer bg-blue-600 hover:bg-blue-700 text-white rounded-md font-medium transition-colors"
+                        disabled={loading}
+                        className="flex-1 py-3 px-4 flex justify-center items-center cursor-pointer bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-md font-medium transition-colors"
                       >
                         {loading ? <ButtonLoader /> : "Upload Image"}
                       </motion.button>
@@ -241,7 +261,8 @@ export const ImageUpload = ({ onChange, onClose, data, imageUpload }) => {
                         whileHover={{ scale: 1.02 }}
                         whileTap={{ scale: 0.98 }}
                         onClick={handleUploadAnother}
-                        className="flex-1 cursor-pointer py-3 px-4 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-md font-medium transition-colors"
+                        disabled={loading}
+                        className="flex-1 cursor-pointer py-3 px-4 bg-gray-200 hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed text-gray-700 rounded-md font-medium transition-colors"
                       >
                         Upload Another
                       </motion.button>

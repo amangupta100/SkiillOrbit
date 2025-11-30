@@ -72,7 +72,7 @@ const applicationStatusTemplate = (
 <body>
   <div class="container">
     <div class="header">
-      <img src="https://res.cloudinary.com/ddad6pdhx/image/upload/v1758799527/logo_qzuuth.png" alt="Company Logo">
+      <img src="https://res.cloudinary.com/ddad6pdhx/image/upload/v1764000861/skillsorbit_logo_kvqgee.png" alt="Company Logo">
     </div>
     <div class="content">
       <h2>Hi ${userName},</h2>

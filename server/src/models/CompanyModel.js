@@ -5,14 +5,8 @@ const companySchema = new mongoose.Schema({
     type: String,
     required: true,
   },
-  logo: {
-    type: {
-      data: String, // Base64 encoded string
-      contentType: String, // MIME type (e.g., 'image/jpeg')
-      lastModified: Date, // When the image was last updated
-    },
-    default: null,
-  },
+  imagePath: { type: String, default: null },
+
   tagline: String,
   websiteURL: {
     type: String,

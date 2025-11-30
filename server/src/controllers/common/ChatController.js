@@ -88,16 +88,23 @@ const searchApplicants = async (req, res) => {
 const getChatList = async (req, res) => {
   try {
     const { id: userId } = req.recruiter || req.user;
-    const roleType = req.recruiter ? "Recruiter" : "User";
 
     if (!userId) {
       return res.status(401).json({ success: false, message: "Unauthorized" });
     }
 
-    // 🟢 Fetch all chats where the current user is a member
-    const chats = await Chat.find({
-      "members.userId": userId,
-    })
+    // ⚡ Load ONLY the fields required — exclude heavy arrays like messages[]
+    const chats = await Chat.find(
+      { "members.userId": userId },
+      {
+        messages: 0, // ❌ Don't load messages array at all (super heavy)
+        description: 0,
+        isArchived: 0,
+        isMuted: 0,
+        "members.lastReadMessageId": 0,
+        __v: 0,
+      }
+    )
       .populate({
         path: "members.userId",
         select: "name image onlineStatus _id lastActiveDisplay",
@@ -109,23 +116,21 @@ const getChatList = async (req, res) => {
       .sort({ updatedAt: -1 })
       .lean();
 
-    // 🧩 Format — remove the requester and only keep other participant(s)
+    // ⚡ Format output EXACTLY like your original structure
     const chatList = chats.map((chat) => {
       const isPrivate = chat.type === "private";
 
-      // Exclude current user from members
       const otherMembers = chat.members.filter(
         (m) => m.userId && m.userId._id.toString() !== userId.toString()
       );
 
-      // For private chats, there’s only one receiver
       const receiver = isPrivate ? otherMembers[0] : null;
 
       return {
         _id: chat._id,
         type: chat.type,
 
-        // 🧠 Show receiver name for private, or group name
+        // same name logic
         name:
           isPrivate && receiver
             ? receiver.userId?.name || "Unknown User"
@@ -133,12 +138,12 @@ const getChatList = async (req, res) => {
 
         userId: isPrivate && receiver ? receiver.userId?._id : null,
 
-        // 🖼️ Avatar (receiver’s image or group avatar)
+        // same avatar logic
         avatar: isPrivate
           ? receiver?.userId?.image || null
           : chat.avatar || null,
 
-        // 🗨️ Last message info
+        // same lastMessage logic
         lastMessage: chat.lastMessage
           ? {
               content: chat.lastMessage.content || null,
@@ -152,7 +157,7 @@ const getChatList = async (req, res) => {
             }
           : null,
 
-        // ⏱️ Timestamps and status
+        // timestamps + status
         updatedAt: chat.updatedAt,
         onlineStatus: receiver?.userId?.onlineStatus || null,
         lastActiveDisplay: receiver?.userId?.lastActiveDisplay || null,
@@ -171,7 +176,6 @@ const getChatList = async (req, res) => {
     });
   }
 };
-
 const getChatMessages = async (req, res) => {
   try {
     const { chatId } = req.params;
@@ -184,14 +188,11 @@ const getChatMessages = async (req, res) => {
       });
     }
 
-    // 🔹 Fetch chat + populate message user data
-    const chat = await Chat.findById(chatId)
-      .populate("messages.senderId", "name image")
-      .populate(
-        "messages.receiverId",
-        "name image email onlineStatus lastActiveDisplay"
-      )
-      .lean();
+    // ⚡ Load ONLY messages from chat — do NOT populate entire chat object
+    const chat = await Chat.findById(chatId, {
+      messages: 1,
+      _id: 1,
+    }).lean();
 
     if (!chat) {
       return res.status(404).json({
@@ -200,18 +201,48 @@ const getChatMessages = async (req, res) => {
       });
     }
 
-    // 🔹 Sort messages oldest → newest
+    // ⚡ Collect all sender + receiver user IDs to fetch in ONE query
+    const senderIds = chat.messages.map((m) => m.senderId);
+    const receiverIds = chat.messages.map((m) => m.receiverId).filter(Boolean);
+
+    const uniqueUserIds = [...new Set([...senderIds, ...receiverIds])];
+
+    // ⚡ Fetch ALL user data in 1 DB query (fast)
+    const users = await User.find(
+      { _id: { $in: uniqueUserIds } },
+      "name image email onlineStatus lastActiveDisplay"
+    ).lean();
+
+    // Make map for O(1) lookup
+    const userMap = new Map(users.map((u) => [u._id.toString(), u]));
+
+    // ⚡ Sort + enhance messages (same response format)
     const sortedMessages = chat.messages
       .sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt))
-      .map((msg) => ({
-        ...msg,
-        isSentByUser:
-          msg.senderId?._id?.toString() === currentUserId.toString(),
-        // just pass existing DB status (sent/delivered/seen)
-        currentStatus: msg.status,
-      }));
+      .map((msg) => {
+        const sender = userMap.get(msg.senderId?.toString());
+        const receiver = userMap.get(msg.receiverId?.toString());
 
-    // ✅ Respond with full message list as-is
+        return {
+          ...msg,
+          senderId: sender
+            ? { _id: sender._id, name: sender.name, image: sender.image }
+            : null,
+          receiverId: receiver
+            ? {
+                _id: receiver._id,
+                name: receiver.name,
+                image: receiver.image,
+                email: receiver.email,
+                onlineStatus: receiver.onlineStatus,
+                lastActiveDisplay: receiver.lastActiveDisplay,
+              }
+            : null,
+          isSentByUser: msg.senderId?.toString() === currentUserId.toString(),
+          currentStatus: msg.status,
+        };
+      });
+
     return res.status(200).json({
       success: true,
       chatId,
@@ -238,18 +269,24 @@ const createOrGetConversation = async (req, res) => {
     } = req.body;
 
     if (!senderId || !receiverId) {
-      return res
-        .status(400)
-        .json({ success: false, message: "Missing sender or receiver ID" });
+      return res.status(400).json({
+        success: false,
+        message: "Missing sender or receiver ID",
+      });
     }
 
-    // 🔍 1️⃣ Find if a private chat already exists between both users
-    let chat = await Chat.findOne({
-      type: "private",
-      "members.userId": { $all: [senderId, receiverId] },
-    });
+    // 1️⃣ Check if chat already exists (FAST + indexed)
+    let chat = await Chat.findOne(
+      {
+        type: "private",
+        "members.userId": { $all: [senderId, receiverId] },
+      },
+      {
+        messages: 0, // 🚀 do NOT load huge messages array
+      }
+    ).lean();
 
-    // 🆕 2️⃣ Create new chat if none exists
+    // 2️⃣ Create new chat if not exists
     if (!chat) {
       chat = await Chat.create({
         type: "private",
@@ -260,26 +297,30 @@ const createOrGetConversation = async (req, res) => {
         createdBy: senderId,
         createdByModel: senderModel,
       });
+
+      chat = chat.toObject();
     }
 
-    // 💬 3️⃣ Create message if content or media provided
     let newMessage = null;
 
+    // 3️⃣ Add message if provided
     if (content || (media && media.length > 0)) {
+      const now = new Date();
+
       newMessage = {
         senderId,
         senderModel,
-        receiverId, // ✅ Save receiverId
-        receiverModel, // ✅ Save receiverModel for refPath population
+        receiverId,
+        receiverModel,
         content,
         media,
         status: "sent",
-        createdAt: new Date(),
+        createdAt: now,
       };
 
-      // Push message and update lastMessage + updatedAt
-      chat = await Chat.findByIdAndUpdate(
-        chat._id,
+      // Only modify chat minimally after insert
+      await Chat.updateOne(
+        { _id: chat._id },
         {
           $push: { messages: newMessage },
           $set: {
@@ -289,76 +330,90 @@ const createOrGetConversation = async (req, res) => {
               content,
               media,
               status: "sent",
-              createdAt: new Date(),
+              createdAt: now,
             },
-            updatedAt: new Date(),
+            updatedAt: now,
           },
-        },
-        { new: true }
-      )
-        .populate({
-          path: "members.userId",
-          select: "name image onlineStatus lastActiveDisplay",
-        })
-        .populate({
-          path: "messages.receiverId",
-          select: "name image onlineStatus lastActiveDisplay",
-        })
-        .populate({
-          path: "messages.senderId",
-          select: "name image onlineStatus lastActiveDisplay",
-        })
-        .lean();
+        }
+      );
+
+      // Append lastMessage to chat object for frontend
+      chat.lastMessage = {
+        senderId,
+        senderModel,
+        content,
+        media,
+        status: "sent",
+        createdAt: now,
+      };
     }
 
-    // ✅ 4️⃣ Return response
+    // 4️⃣ Fetch member details WITHOUT HEAVY POPULATE
+    const memberIds = chat.members.map((m) => m.userId);
+    const users = await User.find(
+      { _id: { $in: memberIds } },
+      "name image onlineStatus lastActiveDisplay"
+    ).lean();
+
+    const userMap = new Map(users.map((u) => [u._id.toString(), u]));
+
+    // Build populated-style members (same shape as old response)
+    const populatedMembers = chat.members.map((m) => ({
+      ...m,
+      userId: userMap.get(m.userId.toString()) || null,
+    }));
+
+    // Build final chat object identically to old response
+    const responseChat = {
+      ...chat,
+      members: populatedMembers,
+    };
+
     return res.status(200).json({
       success: true,
       message: "Conversation created or updated successfully",
       chatId: chat._id,
-      chat,
+      chat: responseChat,
       lastMessage: chat?.lastMessage || newMessage,
     });
   } catch (err) {
-    return res
-      .status(500)
-      .json({ success: false, message: "Server error while creating chat" });
+    return res.status(500).json({
+      success: false,
+      message: "Server error while creating chat",
+    });
   }
 };
 
 const getAllChatsWithMessages = async (req, res) => {
   try {
     const { id: userId } = req.recruiter || req.user;
-    const roleType = req.recruiter ? "Recruiter" : "User";
 
     if (!userId) {
-      return res.status(401).json({ success: false, message: "Unauthorized" });
+      return res.status(401).json({
+        success: false,
+        message: "Unauthorized",
+      });
     }
 
-    // 🔹 Fetch chats where the user is a member and has received at least one message
-    const chats = await Chat.find({
-      type: "private",
-      "members.userId": userId,
-      "messages.receiverId": userId, // ✅ Only chats where user is receiver
-    })
-      .populate({
-        path: "members.userId",
-        select: "name email image onlineStatus lastActiveDisplay",
-      })
-      .populate({
-        path: "messages.senderId",
-        select: "name image onlineStatus lastActiveDisplay",
-      })
-      .populate({
-        path: "messages.receiverId",
-        select: "name email image onlineStatus lastActiveDisplay",
-      })
-      .populate("lastMessage")
-      .select("_id type name avatar members messages createdAt updatedAt")
+    // 1️⃣ Load only required fields (NO message populate!)
+    const chats = await Chat.find(
+      {
+        type: "private",
+        "members.userId": userId,
+        "messages.receiverId": userId, // only chats where user RECEIVED messages
+      },
+      {
+        messages: 1,
+        members: 1,
+        lastMessage: 1,
+        avatar: 1,
+        name: 1,
+        updatedAt: 1,
+      }
+    )
       .sort({ updatedAt: -1 })
       .lean();
 
-    // ✅ If no chats found, return empty response
     if (!chats || chats.length === 0) {
       return res.json({
         success: true,
@@ -367,54 +422,99 @@ const getAllChatsWithMessages = async (req, res) => {
       });
     }
 
-    // 🔹 Format chats similar to getChatList
+    // 2️⃣ Collect all userIds referenced from messages + members
+    const senderIds = [];
+    const receiverIds = [];
+    const memberIds = [];
+
+    for (const chat of chats) {
+      for (const msg of chat.messages) {
+        if (msg.senderId) senderIds.push(msg.senderId.toString());
+        if (msg.receiverId) receiverIds.push(msg.receiverId.toString());
+      }
+      for (const m of chat.members) {
+        memberIds.push(m.userId.toString());
+      }
+    }
+
+    const uniqueUserIds = [
+      ...new Set([...senderIds, ...receiverIds, ...memberIds]),
+    ];
+
+    // 3️⃣ Fetch all related users in ONE FAST QUERY
+    const users = await User.find(
+      { _id: { $in: uniqueUserIds } },
+      "name email image onlineStatus lastActiveDisplay"
+    ).lean();
+
+    const userMap = new Map(users.map((u) => [u._id.toString(), u]));
+
+    // 4️⃣ Build final chat list
     const chatList = chats
       .map((chat) => {
+        // Find the other user (not the currentUser)
         const otherMember = chat.members.find(
-          (m) => m.userId && m.userId._id.toString() !== userId.toString()
+          (m) => m.userId.toString() !== userId.toString()
         );
 
-        // 🔹 Filter only messages received by this user
-        const receivedMessages = (chat.messages || [])
-          .filter(
-            (msg) =>
-              msg.receiverId &&
-              msg.receiverId._id?.toString() === userId.toString()
-          )
-          .sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt))
-          .map((msg) => ({
-            _id: msg._id,
-            senderId: msg.senderId,
-            receiverId: msg.receiverId,
-            content: msg.content,
-            media: msg.media,
-            status: msg.status,
-            createdAt: msg.createdAt,
-            senderModel: msg.senderModel,
-            receiverModel: msg.receiverModel,
-            isDeleted: msg.isDeleted,
-            isPinned: msg.isPinned,
-            reactions: msg.reactions,
-            mentions: msg.mentions,
-          }));
+        const otherUser = userMap.get(otherMember?.userId?.toString());
 
-        // ✅ If no received messages, skip this chat
+        // 5️⃣ Filter messages where receiver = userId
+        const receivedMessages = chat.messages
+          .filter((msg) => msg.receiverId?.toString() === userId.toString())
+          .sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt))
+          .map((msg) => {
+            const sender = userMap.get(msg.senderId?.toString());
+            const receiver = userMap.get(msg.receiverId?.toString());
+
+            return {
+              _id: msg._id,
+              senderId: sender
+                ? {
+                    _id: sender._id,
+                    name: sender.name,
+                    image: sender.image,
+                  }
+                : null,
+              receiverId: receiver
+                ? {
+                    _id: receiver._id,
+                    name: receiver.name,
+                    email: receiver.email,
+                    image: receiver.image,
+                    onlineStatus: receiver.onlineStatus,
+                    lastActiveDisplay: receiver.lastActiveDisplay,
+                  }
+                : null,
+              content: msg.content,
+              media: msg.media,
+              status: msg.status,
+              createdAt: msg.createdAt,
+              senderModel: msg.senderModel,
+              receiverModel: msg.receiverModel,
+              isDeleted: msg.isDeleted,
+              isPinned: msg.isPinned,
+              reactions: msg.reactions,
+              mentions: msg.mentions,
+            };
+          });
+
         if (receivedMessages.length === 0) return null;
 
         return {
           chatId: chat._id,
-          name: otherMember?.userId?.name || chat.name || "Unknown User",
-          avatar: otherMember?.userId?.image || chat.avatar || null,
-          email: otherMember?.userId?.email || null,
-          onlineStatus: otherMember?.userId?.onlineStatus || "offline",
-          lastActiveDisplay: otherMember?.userId?.lastActiveDisplay || null,
+          name: otherUser?.name || chat.name || "Unknown User",
+          avatar: otherUser?.image || chat.avatar || null,
+          email: otherUser?.email || null,
+          onlineStatus: otherUser?.onlineStatus || "offline",
+          lastActiveDisplay: otherUser?.lastActiveDisplay || null,
           updatedAt: chat.updatedAt,
           lastMessage: chat.lastMessage || null,
           messages: receivedMessages,
-          user: otherMember?.userId || null,
+          user: otherUser || null,
         };
       })
-      .filter(Boolean); // remove nulls
+      .filter(Boolean);
 
     return res.status(200).json({
       success: true,
@@ -433,7 +533,7 @@ const GetPrivateChat = async (req, res) => {
   try {
     const { senderId, senderModel, receiverId, receiverModel } = req.body;
 
-    // Validation
+    // 1️⃣ Validate required fields
     if (!senderId || !receiverId || !senderModel || !receiverModel) {
       return res.status(400).json({
         success: false,
@@ -442,7 +542,7 @@ const GetPrivateChat = async (req, res) => {
       });
     }
 
-    // Ensure models are valid (based on schema enum)
+    // 2️⃣ Validate models
     const validModels = ["User", "Recruiter"];
     if (
       !validModels.includes(senderModel) ||
@@ -455,16 +555,18 @@ const GetPrivateChat = async (req, res) => {
       });
     }
 
-    // Find existing private chat between these two users
-    const existingChat = await Chat.findOne({
-      type: "private",
-      members: {
-        $all: [
-          { userId: senderId, userModel: senderModel },
-          { userId: receiverId, userModel: receiverModel },
-        ],
+    // Normalize IDs to ObjectId for faster matching
+    const sId = new ObjectId(senderId);
+    const rId = new ObjectId(receiverId);
+
+    // 3️⃣ Check if chat exists (FAST & Indexed)
+    const existingChat = await Chat.findOne(
+      {
+        type: "private",
+        "members.userId": { $all: [sId, rId] },
       },
-    }).select("_id"); // Only select ID for efficiency
+      { _id: 1 } // projection for speed
+    ).lean();
 
     if (existingChat) {
       return res.json({
@@ -474,52 +576,47 @@ const GetPrivateChat = async (req, res) => {
       });
     }
 
-    // Create new private chat
-    const newChat = new Chat({
+    // 4️⃣ Create new chat (FAST using Chat.create)
+    const now = new Date();
+    const newChat = await Chat.create({
       type: "private",
-      name: null, // Private chats typically don't have a name; can be set dynamically if needed
+      name: null,
       description: null,
       avatar: null,
       members: [
         {
-          userId: senderId,
+          userId: sId,
           userModel: senderModel,
           role: "member",
-          joinedAt: new Date(),
+          joinedAt: now,
         },
         {
-          userId: receiverId,
+          userId: rId,
           userModel: receiverModel,
           role: "member",
-          joinedAt: new Date(),
+          joinedAt: now,
         },
       ],
-      lastMessage: null, // No messages yet
-      createdBy: senderId,
+      lastMessage: null,
+      createdBy: sId,
       createdByModel: senderModel,
       isArchived: false,
       isMuted: false,
     });
 
-    await newChat.save();
-
-    // Optionally, populate or add more details if needed (e.g., receiver name for display)
-    // But for now, just return the ID
-
-    res.status(201).json({
+    return res.status(201).json({
       success: true,
       chatId: newChat._id.toString(),
       exists: false,
     });
   } catch (error) {
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       message: "Internal server error: " + error.message,
     });
   }
 };
 
-// Schedule Interview Controller
 const scheduleInterview = async (req, res) => {
   try {
     const {
@@ -528,30 +625,35 @@ const scheduleInterview = async (req, res) => {
       interviewDate,
       notes = "",
       postingType,
-    } = req.body; // 🚨 Explicitly destructure postingType
-    const recruiterId = req.recruiter.id;
+    } = req.body;
 
-    // Validation
-    if (!applicantId || !postingId || !interviewDate || !postingType) {
-      // 🚨 Require postingType
-      return res.status(400).json({
+    const recruiterId = req.recruiter?.id;
+    if (!recruiterId) {
+      return res.status(401).json({
         success: false,
-        message:
-          "Missing required fields: applicantId, postingId, interviewDate, postingType (job/internship)",
+        message: "Unauthorized",
       });
     }
 
-    // 🚨 NEW: Determine & validate posting type (override if mismatched)
-    let actualPostingType = postingType.toLowerCase();
+    // 1️⃣ Basic validation
+    if (!applicantId || !postingId || !interviewDate || !postingType) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "Missing required fields: applicantId, postingId, interviewDate, postingType",
+      });
+    }
+
+    const normalizedType = postingType.toLowerCase();
+    const now = new Date();
+
+    // 2️⃣ Fetch posting (NO populate → only necessary fields)
     let posting = null;
-    if (actualPostingType === "job") {
-      posting = await JobModel.findById(postingId)
-        .populate("company", "name")
-        .lean();
-    } else if (actualPostingType === "internship") {
-      posting = await Internship.findById(postingId)
-        .populate("company", "name")
-        .lean();
+
+    if (normalizedType === "job") {
+      posting = await Job.findById(postingId, "role company").lean();
+    } else if (normalizedType === "internship") {
+      posting = await Internship.findById(postingId, "role company").lean();
     } else {
       return res.status(400).json({
         success: false,
@@ -566,109 +668,118 @@ const scheduleInterview = async (req, res) => {
       });
     }
 
-    // Generate unique interview code
+    // Fetch company name in one fast query
+    let companyName = "Company";
+    if (posting.company) {
+      const company = await Company.findById(posting.company, "name").lean();
+      companyName = company?.name || "Company";
+    }
+
+    const role = posting.role || "Role";
+    const parsedInterviewDate = new Date(interviewDate);
+
+    // 3️⃣ Create unique interview entry (FAST using .create)
     const uniqueCode = generateInterviewCode();
 
-    // Create new interview (use validated type)
-    const newInterview = new InterviewSchema({
-      // 🚨 Schema now validates these
+    const interview = await InterviewSchema.create({
       recruiterId,
       applicantId,
       postingId,
-      postingType: actualPostingType, // Normalized
-      interviewDate: new Date(interviewDate),
+      postingType: normalizedType,
+      interviewDate: parsedInterviewDate,
       notes,
       status: "SCHEDULED",
-      reminderJobScheduled: false, // Set after scheduling
+      reminderJobScheduled: false,
       reminderSent: false,
       uniqueCode,
+      createdAt: now,
+      updatedAt: now,
     });
 
-    await newInterview.save();
+    // 4️⃣ Schedule reminder job
+    const reminderResult = await scheduleReminderJob(interview);
 
-    // Schedule reminder job (unchanged)
-    const reminderResult = await scheduleReminderJob(newInterview);
-    if (!reminderResult.success) {
-    }
-
-    // Use validated posting data (no re-fetch needed)
-    const role = posting.role || "Role"; // Both schemas have 'role'
-    const companyName = posting.company ? posting.company.name : "Company";
-
-    const formattedDate = format(new Date(interviewDate), "PPP p");
-
-    // Fetch applicant/recruiter (unchanged)
-    const applicant = await User.findById(applicantId).select("name email");
-    const recruiter = await Recruiter.findById(recruiterId).select(
-      "name email"
-    );
+    // 5️⃣ Fetch applicant + recruiter in same batch (faster)
+    const [applicant, recruiter] = await Promise.all([
+      User.findById(applicantId, "name email").lean(),
+      Recruiter.findById(recruiterId, "name email").lean(),
+    ]);
 
     if (!applicant || !recruiter) {
-      await InterviewSchema.findByIdAndDelete(newInterview._id); // Cleanup
-      return res
-        .status(404)
-        .json({ success: false, message: "Applicant or recruiter not found" });
+      await InterviewSchema.findByIdAndDelete(interview._id);
+      return res.status(404).json({
+        success: false,
+        message: "Applicant or recruiter not found",
+      });
     }
 
-    // Send scheduled email (unchanged, but uses validated role/companyName)
-    const emailResult = await sendInterviewScheduledEmail(
+    const formattedDate = format(parsedInterviewDate, "PPP p");
+
+    // 6️⃣ Send email notification
+    await sendInterviewScheduledEmail(
       applicant.email,
       applicant.name,
       recruiter.name,
       companyName,
       role,
-      interviewDate,
+      parsedInterviewDate,
       notes,
       uniqueCode
     );
 
-    // Notifications (unchanged)
-    await User.findByIdAndUpdate(applicantId, {
-      $push: {
-        notifications: {
-          type: "INTERVIEW_SCHEDULED",
-          title: "Interview Scheduled",
-          message: `Your interview for ${role} at ${companyName} is scheduled for ${formattedDate}.`,
-          meta: {
-            interviewId: newInterview._id,
-            postingId,
-            interviewDate,
-            uniqueCode,
-          },
-          read: false,
-        },
+    // 7️⃣ Push notifications (FAST using atomic update)
+    const applicantNotification = {
+      type: "INTERVIEW_SCHEDULED",
+      title: "Interview Scheduled",
+      message: `Your interview for ${role} at ${companyName} is scheduled for ${formattedDate}.`,
+      meta: {
+        interviewId: interview._id,
+        postingId,
+        interviewDate,
+        uniqueCode,
       },
-    });
+      read: false,
+      createdAt: now,
+    };
 
-    await Recruiter.findByIdAndUpdate(recruiterId, {
-      $push: {
-        notifications: {
-          type: "INTERVIEW_SCHEDULED",
-          title: "Interview Scheduled",
-          message: `Interview with ${applicant.name} for ${role} is scheduled for ${formattedDate}.`,
-          meta: {
-            interviewId: newInterview._id,
-            applicantId,
-            interviewDate,
-            uniqueCode,
-          },
-          read: false,
-        },
+    const recruiterNotification = {
+      type: "INTERVIEW_SCHEDULED",
+      title: "Interview Scheduled",
+      message: `Interview with ${applicant.name} for ${role} is scheduled for ${formattedDate}.`,
+      meta: {
+        interviewId: interview._id,
+        applicantId,
+        interviewDate,
+        uniqueCode,
       },
-    });
+      read: false,
+      createdAt: now,
+    };
 
-    res.status(201).json({
+    await Promise.all([
+      User.updateOne(
+        { _id: applicantId },
+        { $push: { notifications: applicantNotification } }
+      ),
+      Recruiter.updateOne(
+        { _id: recruiterId },
+        { $push: { notifications: recruiterNotification } }
+      ),
+    ]);
+
+    // 8️⃣ Return SAME response format as before
+    return res.status(201).json({
       success: true,
       message: "Interview scheduled successfully",
       data: {
-        interviewId: newInterview._id,
+        interviewId: interview._id,
         interviewDate: formattedDate,
         uniqueCode,
         reminderJobId: reminderResult.jobId || null,
       },
     });
   } catch (error) {
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       message: `Internal server error: ${error.message}`,
     });

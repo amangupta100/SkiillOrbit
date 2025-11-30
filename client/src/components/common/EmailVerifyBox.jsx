@@ -21,76 +21,72 @@ const EmailVerifyBox = ({ email, name }) => {
   const [loading, setLoading] = useState(false);
 
   const [uOTP, setuOTP] = useState("");
-  const [aOTP, setaOTP] = useState("");
 
-  const [timer, setTimer] = useState(0); // 5 mins countdown
+  const [timer, setTimer] = useState(0); // seconds
 
-  // Prevent page scroll
   useEffect(() => {
-    const originalOverflow = document.body.style.overflow;
+    const prev = document.body.style.overflow;
     document.body.style.overflow = "hidden";
-    return () => (document.body.style.overflow = originalOverflow);
+    return () => (document.body.style.overflow = prev);
   }, []);
 
-  // TIMER COUNTDOWN
+  // Timer countdown
   useEffect(() => {
     if (!showOtpBox || timer <= 0) return;
-
     const interval = setInterval(() => setTimer((t) => t - 1), 1000);
     return () => clearInterval(interval);
   }, [timer, showOtpBox]);
 
+  // SEND OTP
   const handleSendOTP = async () => {
     try {
       setLoading(true);
-      setuOTP(""); // fresh input
+      setuOTP("");
 
-      const resp = await API.post("/sendOTP", {
+      const { data } = await API.post("/sendOTP", {
         email,
         name,
         forgotPassword: false,
       });
-      const { success, message, otp } = resp.data;
 
-      if (success) {
-        toast.success(message);
-        setaOTP(otp);
+      if (data.success) {
+        toast.success("OTP sent");
         setshowOtpBox(true);
-        setTimer(300); // 5 minutes
-      } else toast.error(message);
+        setTimer(300); // 5 min exact
+      } else toast.error(data.message);
     } catch (err) {
-      toast.error(err.message);
+      toast.error("Failed to send OTP");
     } finally {
       setLoading(false);
     }
   };
 
+  // RESEND OTP
   const handleResendOTP = async () => {
+    if (timer > 0) return; // don’t allow early resend
+
     try {
       setLoading(true);
-      setuOTP(""); // clear OTP input
+      setuOTP("");
 
-      const resp = await API.post("/sendOTP", {
+      const { data } = await API.post("/sendOTP", {
         email,
         name,
         forgotPassword: false,
       });
-      const { success, message, otp } = resp.data;
 
-      if (success) {
-        setaOTP(otp);
-        setTimer(300); // restart timer
+      if (data.success) {
         toast.success("OTP resent");
-      } else {
-        toast.error(message);
-      }
-    } catch (err) {
+        setTimer(300);
+      } else toast.error(data.message);
+    } catch {
       toast.error("Failed to resend OTP");
     } finally {
       setLoading(false);
     }
   };
 
+  // VERIFY OTP
   const handleVerifyOTP = async (e) => {
     e.preventDefault();
 
@@ -98,20 +94,18 @@ const EmailVerifyBox = ({ email, name }) => {
 
     try {
       setLoading(true);
-      const resp = await API.post("/verifyOTP", {
+      const { data } = await API.post("/verifyOTP", {
+        email,
         otp: uOTP,
-        token: aOTP,
-        forgotPassword: false,
       });
-      const { success, message } = resp.data;
 
-      if (success) {
-        toast.success(message);
+      if (data.success) {
+        toast.success("OTP Verified");
         setShowEmailVerifyBox(false);
         verifyEmail();
-      } else toast.error(message);
+      } else toast.error(data.message);
     } catch (err) {
-      toast.error(err.message);
+      toast.error("Verification failed");
     } finally {
       setLoading(false);
     }
@@ -120,7 +114,6 @@ const EmailVerifyBox = ({ email, name }) => {
   return (
     <div className="fixed inset-0 z-[100] flex justify-center backdrop-blur-md items-center bg-black/60">
       <div className="lg:w-[35%] md:w-[65%] sm:w-[78%] w-[85%] py-7 px-5 h-fit rounded-lg bg-white relative">
-        {/* CLOSE BUTTON */}
         <Image
           onClick={() => {
             setShowEmailVerifyBox(false);
@@ -135,8 +128,7 @@ const EmailVerifyBox = ({ email, name }) => {
 
         <div className="px-3">
           {showOtpBox ? (
-            <div>
-              {/* EDIT EMAIL BUTTON */}
+            <>
               <button
                 onClick={() => {
                   setshowOtpBox(false);
@@ -150,48 +142,45 @@ const EmailVerifyBox = ({ email, name }) => {
               <h1 className="text-center py-7 text-xl font-bold">Verify OTP</h1>
               <p>Enter 6-digit OTP sent to {email}</p>
 
-              {/* TIMER */}
-              <div className="text-gray-500 text-sm mt-2">
-                OTP expires in:
-                <span className="font-semibold">
-                  {" "}
-                  {String(Math.floor(timer / 60)).padStart(2, "0")}:
-                  {String(timer % 60).padStart(2, "0")}
-                </span>
-              </div>
+              {timer > 0 && (
+                <div className="text-gray-500 text-sm mt-2">
+                  OTP expires in:
+                  <span className="font-semibold">
+                    {" "}
+                    {String(Math.floor(timer / 60)).padStart(2, "0")}:
+                    {String(timer % 60).padStart(2, "0")}
+                  </span>
+                </div>
+              )}
 
-              {/* EXPIRED MESSAGE */}
               {timer <= 0 && (
                 <p className="text-red-500 text-sm mt-1">
                   OTP expired — request a new one.
                 </p>
               )}
 
-              <form onSubmit={handleVerifyOTP} className="flex flex-col">
-                <div className="mt-6">
-                  <InputOTP value={uOTP} onChange={setuOTP} maxLength={6}>
-                    <InputOTPGroup>
-                      <InputOTPSlot index={0} />
-                      <InputOTPSlot index={1} />
-                      <InputOTPSlot index={2} />
-                      <InputOTPSlot index={3} />
-                      <InputOTPSlot index={4} />
-                      <InputOTPSlot index={5} />
-                    </InputOTPGroup>
-                  </InputOTP>
-                </div>
+              <form onSubmit={handleVerifyOTP} className="flex flex-col mt-6">
+                <InputOTP value={uOTP} onChange={setuOTP} maxLength={6}>
+                  <InputOTPGroup>
+                    <InputOTPSlot index={0} />
+                    <InputOTPSlot index={1} />
+                    <InputOTPSlot index={2} />
+                    <InputOTPSlot index={3} />
+                    <InputOTPSlot index={4} />
+                    <InputOTPSlot index={5} />
+                  </InputOTPGroup>
+                </InputOTP>
 
                 {/* RESEND BUTTON */}
-                {/* <button
+                <button
                   type="button"
                   disabled={loading || timer > 0}
                   onClick={handleResendOTP}
-                  className="text-blue-500 underline text-sm mt-2 disabled:opacity-60"
+                  className="text-blue-500 underline text-start text-sm mt-2 disabled:opacity-40"
                 >
                   {loading ? <ButtonLoader /> : "Resend OTP"}
-                </button> */}
+                </button>
 
-                {/* VERIFY BUTTON */}
                 <button
                   disabled={loading || uOTP.length < 6 || timer <= 0}
                   className="mt-4 py-3 mb-3 flex items-center justify-center text-white bg-black rounded-lg disabled:bg-gray-400"
@@ -199,32 +188,29 @@ const EmailVerifyBox = ({ email, name }) => {
                   {loading ? <ButtonLoader /> : "Verify"}
                 </button>
               </form>
-            </div>
+            </>
           ) : (
-            <div>
+            <>
               <h1 className="text-xl font-semibold text-center">
                 Verify Email Address
               </h1>
 
               <h1 className="mt-10">Enter email to verify via OTP</h1>
-              <div className="flex flex-col">
-                <input
-                  value={emailVer}
-                  onChange={(e) => setEmail(e.target.value)}
-                  type="email"
-                  className="bg-zinc-300 mt-1 focus:outline-none text-lg py-3 px-5 rounded-lg"
-                />
+              <input
+                value={emailVer}
+                onChange={(e) => setEmail(e.target.value)}
+                type="email"
+                className="bg-zinc-300 mt-1 focus:outline-none text-lg py-3 px-5 rounded-lg w-full"
+              />
 
-                <button
-                  type="button"
-                  disabled={loading}
-                  onClick={handleSendOTP}
-                  className="w-full py-3 mt-3 bg-black text-white rounded-lg flex justify-center items-center disabled:cursor-not-allowed"
-                >
-                  {loading ? <ButtonLoader /> : "Send OTP"}
-                </button>
-              </div>
-            </div>
+              <button
+                disabled={loading}
+                onClick={handleSendOTP}
+                className="w-full py-3 mt-3 bg-black text-white rounded-lg flex justify-center items-center disabled:cursor-not-allowed"
+              >
+                {loading ? <ButtonLoader /> : "Send OTP"}
+              </button>
+            </>
           )}
         </div>
       </div>

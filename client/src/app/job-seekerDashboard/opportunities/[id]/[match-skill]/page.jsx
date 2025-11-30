@@ -171,7 +171,7 @@ const Page = () => {
         loading={loading}
         onApply={handleSubmit}
         loadingTxt="Applying..."
-        disabled={loading}
+        disabled={loading || process.env.NODE_ENV === "production"}
       />
     </div>
   );

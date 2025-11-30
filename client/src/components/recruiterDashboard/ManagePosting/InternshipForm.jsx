@@ -104,6 +104,8 @@ const InternshipForm = () => {
     skills: skillContainerRef, // Note: your activeSuggestionBox uses "skills" (plural)
   };
 
+  console.log(jobForm);
+
   const containerRef = useRef(null);
 
   useEffect(() => {

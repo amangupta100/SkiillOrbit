@@ -29,6 +29,58 @@ export default function ProfileSetup() {
   const [logoPreview, setLogoPreview] = useState(null);
   const fileInputRef = useRef(null);
   const { setAuth } = useRecruiterAuthStore();
+  // ==============================
+  // 💠 LOCATION AUTOCOMPLETE STATES
+  // ==============================
+  const [locQuery, setLocQuery] = useState("");
+  const [locResults, setLocResults] = useState([]);
+  const [locLoading, setLocLoading] = useState(false);
+  const [showLocDropdown, setShowLocDropdown] = useState(false);
+  const locRef = useRef(null);
+
+  // ==============================
+  // Fetch Location Suggestions
+  // ==============================
+  const fetchLocationSuggestions = async (query) => {
+    if (!query || query.length < 2) {
+      setLocResults([]);
+      return;
+    }
+
+    try {
+      setLocLoading(true);
+
+      const res = await API.get(
+        `/common/getExternalAPI/getLocation?q=${encodeURIComponent(query)}`
+      );
+
+      setLocResults(res.data?.data.search_result || []);
+      setShowLocDropdown(true);
+    } catch (error) {
+      console.log("Location search error:", error);
+    } finally {
+      setLocLoading(false);
+    }
+  };
+
+  // Debounce input 400ms
+  useEffect(() => {
+    const timer = setTimeout(() => fetchLocationSuggestions(locQuery), 400);
+    return () => clearTimeout(timer);
+  }, [locQuery]);
+
+  // ==============================
+  // CLICK OUTSIDE → CLOSE DROPDOWN
+  // ==============================
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (locRef.current && !locRef.current.contains(e.target)) {
+        setShowLocDropdown(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   useEffect(() => {
     // Load initial data from localStorage
@@ -78,7 +130,6 @@ export default function ProfileSetup() {
     const reader = new FileReader();
     reader.onloadend = () => {
       setLogoPreview(reader.result);
-      localStorage.setItem("RecruiterLogo", reader.result);
     };
     reader.readAsDataURL(file);
   };
@@ -176,38 +227,41 @@ export default function ProfileSetup() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setLoading(true);
+
     try {
-      setLoading(true);
+      const fd = new FormData();
 
-      let payload = { ...formData };
-      // FIXED: Handle case where logoFile is null (from localStorage preview) but preview exists
-      let base64String;
-      if (logoFile) {
-        base64String = await fileToBase64(logoFile);
-      } else if (logoPreview) {
-        base64String = logoPreview; // Already base64 from localStorage
-      } else {
-        throw new Error("No logo available for upload");
-      }
-      payload.image = base64String;
+      // append text fields
+      Object.keys(formData).forEach((key) => {
+        fd.append(key, formData[key]);
+      });
 
-      const response = await API.post("/recruiter/auth/register", payload);
-      const { success: succ, message, data } = response.data;
-      if (succ) {
+      // append file
+      if (logoFile) fd.append("logo", logoFile);
+
+      const response = await API.post("/recruiter/auth/register", fd);
+
+      const { success, message } = response.data;
+
+      if (success) {
         toast.success(message);
 
-        window.location.href = "/recruiterDashboard";
-        const greetRec = {
-          email: formData.email,
-          name: formData.name,
-        };
-        await API.post("/recruiter/sendMail/greetRec", greetRec);
-        // FIXED: Clear both localStorage keys properly
+        // send greet mail
+        // await API.post("/recruiter/sendMail/greetRec", {
+        //   email: formData.email,
+        //   name: formData.name,
+        // });
+
         localStorage.removeItem("RecruiterData");
         localStorage.removeItem("RecruiterLogo");
-      } else toast.warning(message);
+
+        window.location.href = "/recruiterDashboard";
+      } else {
+        toast.warning(message);
+      }
     } catch (err) {
-      toast.error(err.message || "Registration failed. Please try again.");
+      toast.error(err.message);
     } finally {
       setLoading(false);
     }
@@ -286,7 +340,96 @@ export default function ProfileSetup() {
                     {field.label}
                     {field.required && <span className="text-red-500">*</span>}
                   </label>
-                  {field.type === "select" ? (
+
+                  {/* ==============================
+              SPECIAL FIELD: LOCATION AUTOCOMPLETE
+           =============================== */}
+                  {field.name === "headquarterLocation" ? (
+                    <div className="relative" ref={locRef}>
+                      <input
+                        type="text"
+                        name="headquarterLocation"
+                        value={formData.headquarterLocation}
+                        onChange={(e) => {
+                          setLocQuery(e.target.value);
+                          setFormData({
+                            ...formData,
+                            headquarterLocation: e.target.value,
+                          });
+                        }}
+                        className="w-full px-4 py-2 border rounded-md"
+                        placeholder="Enter location"
+                        autoComplete="off"
+                        required={field.required}
+                      />
+
+                      {/* Loader Spinner */}
+                      {locLoading && (
+                        <div className="absolute right-3 top-3 w-4 h-4 border-2 border-gray-400 border-t-transparent animate-spin rounded-full"></div>
+                      )}
+
+                      {/* DROPDOWN */}
+                      {showLocDropdown && (
+                        <div className="absolute bg-white border rounded shadow-lg w-full mt-1 z-[500] max-h-64 overflow-y-auto">
+                          {/* Loading Skeleton */}
+                          {locLoading && (
+                            <>
+                              {[1, 2, 3].map((i) => (
+                                <div
+                                  key={i}
+                                  className="p-3 border-b animate-pulse"
+                                >
+                                  <div className="h-4 bg-gray-200 rounded w-1/2 mb-1"></div>
+                                  <div className="h-3 bg-gray-100 rounded w-1/3"></div>
+                                </div>
+                              ))}
+                            </>
+                          )}
+
+                          {/* Results */}
+                          {!locLoading && locResults.length > 0 && (
+                            <>
+                              {locResults.map((item, i) => (
+                                <div
+                                  key={i}
+                                  className="px-3 py-2 cursor-pointer hover:bg-gray-100"
+                                  onClick={() => {
+                                    const combined = `${item.placeName}  - ${item.description}`;
+                                    setFormData({
+                                      ...formData,
+                                      headquarterLocation: combined,
+                                    });
+
+                                    setLocQuery(combined); // set input visible value
+                                    setShowLocDropdown(false);
+                                  }}
+                                >
+                                  <p className="font-medium">
+                                    {item.placeName}
+                                  </p>
+                                  <p className="text-xs text-gray-500">
+                                    {item.description}
+                                  </p>
+                                </div>
+                              ))}
+                            </>
+                          )}
+
+                          {/* No Results */}
+                          {!locLoading &&
+                            locResults.length === 0 &&
+                            locQuery.length > 2 && (
+                              <p className="p-3 text-gray-500 text-sm">
+                                No results found
+                              </p>
+                            )}
+                        </div>
+                      )}
+                    </div>
+                  ) : field.type === "select" ? (
+                    /* ==============================  
+               SELECT FIELDS  
+             ============================== */
                     <select
                       name={field.name}
                       value={formData[field.name] || ""}
@@ -302,6 +445,9 @@ export default function ProfileSetup() {
                       ))}
                     </select>
                   ) : field.type === "textarea" ? (
+                    /* ==============================  
+               TEXTAREA FIELDS  
+             ============================== */
                     <textarea
                       name={field.name}
                       value={formData[field.name] || ""}
@@ -312,6 +458,9 @@ export default function ProfileSetup() {
                       required={field.required}
                     />
                   ) : (
+                    /* ==============================  
+               NORMAL INPUT FIELDS  
+             ============================== */
                     <input
                       type={field.type || "text"}
                       name={field.name}
@@ -325,6 +474,10 @@ export default function ProfileSetup() {
                 </div>
               ))}
             </div>
+
+            {/* ==============================
+       SUBMIT BUTTON + ERRORS
+     ============================== */}
             <div className="flex flex-col">
               <Button
                 disabled={!isFormComplete() || loading}
@@ -332,6 +485,7 @@ export default function ProfileSetup() {
               >
                 {loading ? "Processing..." : "Complete Profile"}
               </Button>
+
               {errors.length > 0 && (
                 <div className="mt-2 w-full">
                   <ul className="text-red-500 text-sm space-y-1 max-w-md mx-auto">

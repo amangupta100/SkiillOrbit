@@ -73,7 +73,7 @@ const internshipSchema = new mongoose.Schema(
     experienceLevel: {
       type: String,
       enum: ["Beginner", "Intermediate", "Expert"],
-      required: true,
+      default: null,
     },
     location: {
       type: String,

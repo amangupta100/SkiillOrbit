@@ -2,11 +2,11 @@ import React from "react";
 
 const ProfileSkeleton = () => {
   return (
-    <div className="ml-0 p-3">
+    <div className="ml-0 md:p-1 ">
       {" "}
       {/* keep left padding same as sidebar width */}
       {/* Profile Header */}
-      <div className="bg-white shadow rounded-2xl p-6 mb-6 animate-pulse">
+      <div className="bg-white shadow rounded-2xl p-4 mb-6 animate-pulse">
         <div className="flex items-center gap-4">
           <div className="w-16 h-16 rounded-full bg-gray-300" />
           <div className="flex-1 space-y-2">

@@ -54,7 +54,7 @@ const testResultReadyTemplate = (userName, skillName) => `
     <div class="container">
       <!-- HEADER SECTION -->
       <div class="header">
-        <img src="https://res.cloudinary.com/ddad6pdhx/image/upload/v1758799527/logo_qzuuth.png" alt="SkillsOrbit Logo" />
+        <img src="https://res.cloudinary.com/ddad6pdhx/image/upload/v1764000861/skillsorbit_logo_kvqgee.png" alt="SkillsOrbit Logo" />
       </div>
 
       <!-- CONTENT SECTION -->

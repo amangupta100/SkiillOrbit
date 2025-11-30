@@ -95,7 +95,7 @@ const ForgotPasswordOTP = `<!DOCTYPE html>
       <!-- Header -->
       <div class="header">
         <div class="logo">
-          <img src="https://res.cloudinary.com/ddad6pdhx/image/upload/v1758799527/logo_qzuuth.png" alt="SkillsOrbit Logo">
+          <img src="https://res.cloudinary.com/ddad6pdhx/image/upload/v1764000861/skillsorbit_logo_kvqgee.png" alt="SkillsOrbit Logo">
         </div>
       </div>
 
@@ -107,7 +107,7 @@ const ForgotPasswordOTP = `<!DOCTYPE html>
         <div class="otp-box">{{ .Token }}</div>
 
         <p class="info-text">Please enter this code to complete your authentication process. 
-        This code will expire in <strong>10 minutes</strong>.</p>
+        This code will expire in <strong>5 minutes</strong>.</p>
 
         <p>If you didn't request this code, please ignore this email.</p>
         <p>Best regards,<br>SkillsOrbit Team</p>

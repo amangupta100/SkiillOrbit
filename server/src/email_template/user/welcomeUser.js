@@ -55,7 +55,7 @@ const greetUser = `
     <div class="container">
       <div class="header">
         <!-- 🔻 Insert your logo URL below -->
-        <img src="https://res.cloudinary.com/ddad6pdhx/image/upload/v1758799527/logo_qzuuth.png" alt="SkillsOrbit Logo" />
+        <img src="https://res.cloudinary.com/ddad6pdhx/image/upload/v1764000861/skillsorbit_logo_kvqgee.png" alt="SkillsOrbit Logo" />
         <h1>Welcome to SkillsOrbit 🚀</h1>
       </div>
       <div class="content">
@@ -70,7 +70,7 @@ const greetUser = `
         <ul>
           <li>🎯 Take your first skill test</li>
           <li>📝 Apply</li>
-          <li>⚡ Get recruiter response within 2 days</li>
+          <li>⚡ Get recruiter response as soon as possible</li>
         </ul>
         <p>
           Let’s make your job search smarter, faster, and fairer.

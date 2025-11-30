@@ -7,60 +7,90 @@ const {
 const UserModel = require("../../models/UserModel");
 const { sendPasswordChangedMail } = require("../common/SendOtpContr");
 const RecruiterModel = require("../../models/RecruiterModel");
+const crypto = require("crypto");
+
+// Helper function
+function formatDate(date) {
+  return date.toLocaleString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+  });
+}
 
 const register = async (req, res) => {
   let { fullname: name, email, password } = req.body;
 
   try {
-    let user = await userModel.findOne({ email });
-    if (user) {
-      return res.json({ message: "User Already Exist", success: false });
-    } else {
-      bcrypt.genSalt(10, function (err, salt) {
-        bcrypt.hash(password, salt, async function (err, hash) {
-          user = await userModel.create({
-            name: name,
-            email: email,
-            password: hash,
-          });
+    // Check user already exists (FAST)
+    let existingUser = await userModel.findOne({ email }).lean();
+    if (existingUser) {
+      return res.json({ success: false, message: "User Already Exist" });
+    }
 
-          // Generate new session token
-          const sessionToken = user.generateSessionToken();
-          user.sessionToken = sessionToken;
+    // Hash password
+    bcrypt.genSalt(10, function (err, salt) {
+      bcrypt.hash(password, salt, async function (err, hash) {
+        // Create user
+        const newUser = await userModel.create({
+          name,
+          email,
+          password: hash,
+          // lastActive updated on register itself
+          lastActive: new Date(),
+          lastActiveDisplay: formatDate(new Date()),
+        });
 
-          await user.updateLastLogin();
-          await user.save();
+        // Create session token
+        const sessionToken = newUser.generateSessionToken();
 
-          res.cookie("profileSetupPending", "true", {
-            httpOnly: true,
-            secure: process.env.NODE_ENV === "production",
-            sameSite: process.env.NODE_ENV === "production" ? "None" : "Lax",
-            maxAge: 15 * 60 * 1000, // 15 minutes
-            ...(process.env.NODE_ENV === "production"
-              ? { domain: ".skillsorbit.in" }
-              : {}), // localhost me domain set mat karo
-          });
-
-          // Access Token — valid for 15 minutes
-          genAccessToken(user, res);
-          // // Refresh Token — valid for 7 days
-          genRefreshToken(user, res);
-          res.json({
-            success: true,
-            message: "Register successfully",
-            user: {
-              profileImg: user.image,
-              role: user.role,
-              id: user._id,
-              name: user.name,
-              email: user.email,
+        // Update fast fields (NO .save() → fastest)
+        await userModel.updateOne(
+          { _id: newUser._id },
+          {
+            $set: {
+              sessionToken,
+              lastLogin: new Date(),
+              lastActive: new Date(),
+              lastActiveDisplay: formatDate(new Date()),
+              lastLogout: null,
             },
-          });
+          }
+        );
+
+        // Cookie for profile setup
+        res.cookie("profileSetupPending", "true", {
+          httpOnly: true,
+          secure: process.env.NODE_ENV === "production",
+          sameSite: process.env.NODE_ENV === "production" ? "None" : "Lax",
+          maxAge: 15 * 60 * 1000, // 15 mins
+          ...(process.env.NODE_ENV === "production"
+            ? { domain: ".skillsorbit.in" }
+            : {}),
+        });
+
+        // Access Token — valid for 15 minutes
+        genAccessToken(newUser, res);
+        // Refresh Token — valid for 7 days
+        genRefreshToken(newUser, res);
+
+        return res.json({
+          success: true,
+          message: "Registered successfully",
+          user: {
+            id: newUser._id,
+            name: newUser.name,
+            email: newUser.email,
+            role: newUser.role,
+          },
         });
       });
-    }
+    });
   } catch (err) {
-    res.json({ message: "Internal Server Error", success: false });
+    return res.json({ success: false, message: "Internal Server Error" });
   }
 };
 
@@ -68,96 +98,139 @@ const login = async (req, res) => {
   const { email, password } = req.body;
 
   try {
-    const checkUser = await userModel.findOne({ email });
-    if (!checkUser) {
+    // 1️⃣ Fetch only required fields
+    const user = await userModel
+      .findOne({ email })
+      .select("password sessionToken name email role loginHistory");
+
+    if (!user) {
       return res.json({
         success: false,
         message: "Email or Password is wrong, Please try again!",
       });
     }
 
-    const checkPasswordMatch = await bcrypt.compare(
-      password,
-      checkUser.password
-    );
-
-    if (!checkPasswordMatch) {
+    // 2️⃣ Check password
+    const checkPassword = await bcrypt.compare(password, user.password);
+    if (!checkPassword) {
       return res.json({
         success: false,
         message: "Email or Password is wrong, Please try again!",
       });
     }
 
-    // Already logged in elsewhere check
-    if (checkUser.sessionToken) {
+    // 3️⃣ Already logged in?
+    if (user.sessionToken) {
       return res.json({
         success: false,
         message: "Already logged in on another device",
       });
     }
 
-    // Generate new session token
-    const sessionToken = checkUser.generateSessionToken();
-    checkUser.sessionToken = sessionToken;
+    // 4️⃣ Generate new token
+    const sessionToken = crypto.randomBytes(32).toString("hex");
 
-    await checkUser.updateLastLogin();
-    await checkUser.save();
-    await checkUser.updateActivity();
+    // 5️⃣ FAST atomic update (no .save(), no validation lag)
+    const now = new Date();
+    await userModel.updateOne(
+      { _id: user._id },
+      {
+        $set: {
+          sessionToken,
+          lastLogin: now,
+          lastActive: now,
+          lastActiveDisplay: now.toLocaleString("en-US", {
+            month: "short",
+            day: "numeric",
+            year: "numeric",
+            hour: "numeric",
+            minute: "2-digit",
+            hour12: true,
+          }),
+          onlineStatus: "online",
+        },
+        $push: {
+          loginHistory: {
+            timestamp: now,
+          },
+        },
+      }
+    );
 
-    // Set both tokens as cookies
-    genAccessToken(checkUser, res);
-    genRefreshToken(checkUser, res);
+    // Remove old history > 10 entries
+    await userModel.updateOne(
+      { _id: user._id },
+      { $push: { loginHistory: { $each: [], $slice: -10 } } }
+    );
 
-    res.json({
+    // 6️⃣ Set cookies
+    genAccessToken(user, res);
+    genRefreshToken(user, res);
+
+    return res.json({
       success: true,
       message: "Logged in successfully",
       user: {
-        email: checkUser.email,
-        role: checkUser.role,
-        id: checkUser._id,
-        name: checkUser.name,
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
       },
     });
   } catch (err) {
     console.error(err);
-    return res.status(500).json({ message: err.message, success: false });
+    return res.status(500).json({ success: false, message: err.message });
   }
 };
 
 const logout = async (req, res) => {
   try {
     const authId = req.admin?.id || req.user?.id;
-    const user = await userModel.findById(authId);
-    if (user) {
-      user.sessionToken = null;
-      user.lastLogout = new Date();
-      await user.markOffline(); // optional: set status offline
-      await user.save();
+
+    const now = new Date();
+
+    // 🔥 1 atomic update — no .save(), no validation, no document load
+    await userModel.updateOne(
+      { _id: authId },
+      {
+        $set: {
+          sessionToken: null,
+          lastLogout: now,
+          onlineStatus: "offline",
+          lastActive: now,
+          lastActiveDisplay: now.toLocaleString("en-US", {
+            month: "short",
+            day: "numeric",
+            year: "numeric",
+            hour: "numeric",
+            minute: "2-digit",
+            hour12: true,
+          }),
+        },
+      }
+    );
+
+    // 🔥 Clear cookies
+    const cookieOptions = {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: process.env.NODE_ENV === "production" ? "None" : "Lax",
+    };
+
+    if (process.env.NODE_ENV === "production") {
+      cookieOptions.domain = ".skillsorbit.in";
     }
 
-    // Clear cookies
-    res.clearCookie("accessToken", {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: process.env.NODE_ENV === "production" ? "None" : "Lax",
-      maxAge: 15 * 60 * 1000, // 15 minutes
-      ...(process.env.NODE_ENV === "production"
-        ? { domain: ".skillsorbit.in" }
-        : {}), // localhost me domain set mat karo
-    });
-    res.clearCookie("refreshToken", {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: process.env.NODE_ENV === "production" ? "None" : "Lax",
-      maxAge: 7 * 24 * 60 * 60 * 1000, // 15 minutes
-      ...(process.env.NODE_ENV === "production"
-        ? { domain: ".skillsorbit.in" }
-        : {}), // localhost me domain set mat karo
-    });
+    res.clearCookie("accessToken", cookieOptions);
+    res.clearCookie("refreshToken", cookieOptions);
 
-    res.json({ success: true, message: "Logged out successfully" });
+    return res.json({
+      success: true,
+      message: "Logged out successfully",
+    });
   } catch (err) {
-    res.status(500).json({ success: false, message: err.message });
+    console.error(err);
+    return res.status(500).json({ success: false, message: err.message });
   }
 };
 
@@ -232,7 +305,7 @@ const uploadDomainData = async (req, res) => {
     }
 
     // Find the user by ID
-    const user = await UserModel.findById(userId);
+    const user = await userModel.findById(userId);
     if (!user) {
       return res
         .status(404)

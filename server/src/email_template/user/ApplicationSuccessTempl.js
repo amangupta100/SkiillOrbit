@@ -55,7 +55,7 @@ const applicationSuccessTemplate = (name, opportunityTitle, type) => `
     <div class="container">
       <div class="header">
         <!-- 🔻 Insert your logo URL below -->
-        <img src="https://res.cloudinary.com/ddad6pdhx/image/upload/v1758799527/logo_qzuuth.png" alt="SkillsOrbit Logo" />
+        <img src="https://res.cloudinary.com/ddad6pdhx/image/upload/v1764000861/skillsorbit_logo_kvqgee.png" alt="SkillsOrbit Logo" />
         <h1>Application Submitted Successfully! 🎉</h1>
       </div>
       <div class="content">

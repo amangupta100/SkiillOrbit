@@ -7,6 +7,7 @@ const {
 const {
   PasswordChangedTemplate,
 } = require("../../email_template/common/ForgotPasswordChanged");
+const { getOTP, setOTP, deleteOTP } = require("../../helpers/otpstore");
 
 const generateOTP = () => {
   return randomString.generate({
@@ -20,8 +21,8 @@ let transport = nodemailer.createTransport({
   port: 587,
   secure: false,
   auth: {
-    user: "skillorbit01@gmail.com",
-    pass: "kyst ovep ombh toph",
+    user: process.env.SMTP_USER, // from env
+    pass: process.env.SMTP_PASSWORD, // from env
   },
   tls: {
     rejectUnauthorized: false,
@@ -34,7 +35,9 @@ const SendOTP = async (req, res) => {
   try {
     const otp = generateOTP();
 
-    // Choose template based on forgotPassword flag
+    // store in memory
+    setOTP(email, otp);
+
     const template = forgotPassword ? ForgotPasswordOTP : OTP_Verf;
 
     await transport.sendMail({
@@ -46,10 +49,7 @@ const SendOTP = async (req, res) => {
 
     return res.json({
       success: true,
-      message: forgotPassword
-        ? "Forgot password OTP sent successfully"
-        : "OTP sent successfully",
-      otp,
+      message: "OTP sent successfully",
     });
   } catch (err) {
     return res.json({ success: false, message: "OTP could not be sent" });
@@ -57,12 +57,29 @@ const SendOTP = async (req, res) => {
 };
 
 const VerifyOTP = async (req, res) => {
-  const { otp, token } = req.body;
-
+  const { email, otp } = req.body;
   try {
-    if (otp !== token) {
+    const record = getOTP(email);
+
+    if (!record) {
+      return res.json({
+        success: false,
+        message: "OTP expired, request again",
+      });
+    }
+
+    if (Date.now() > record.expiresAt) {
+      deleteOTP(email);
+      return res.json({ success: false, message: "OTP expired" });
+    }
+
+    if (record.otp !== otp) {
       return res.json({ success: false, message: "Wrong OTP" });
     }
+
+    // success → remove OTP
+    deleteOTP(email);
+
     return res.json({ success: true, message: "OTP Verified Successfully" });
   } catch (err) {
     res.json({ success: false, message: err.message });

@@ -33,11 +33,18 @@ const page = () => {
   const [showImageUpload, setShowImageUpload] = useState(false);
   const dropdownRef = useRef(null);
   const [resumeUploadModal, setResumeUploadModal] = useState(false);
-  const [skillsModal, setSkillsModal] = useState(false);
   const [projects, setProjects] = useState(null);
   const [previewProjectMediaModal, setPreviewModal] = useState(false);
   const [previewProject, setpreviewProject] = useState(null);
-  const { checkAuth } = useAuthStore();
+  const [showMore, setShowMore] = useState(false);
+  const [showAllSkills, setShowAllSkills] = useState(false);
+
+  const isMobile = typeof window !== "undefined" && window.innerWidth < 625;
+
+  const shortSummary =
+    userDet?.summary?.length > 150
+      ? userDet.summary.substring(0, 150) + "..."
+      : userDet?.summary;
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -58,9 +65,6 @@ const page = () => {
       try {
         setLoading(true);
         const req = await API.get("/job-seeker/profile/getUserDet");
-        const req2 = await API.get("/job-seeker/profile/getProjects");
-        checkAuth();
-        setProjects(req2.data.projects);
         setUserDet(req.data.data);
       } catch (err) {
         toast.error(err.message);
@@ -85,38 +89,29 @@ const page = () => {
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
   }
 
-  const handleResumeClick = () => {
-    if (userDet?.resume?.data) {
-      const blob = new Blob([new Uint8Array(userDet.resume.data.data)], {
-        type: userDet.resume.contentType,
-      });
-      const url = URL.createObjectURL(blob);
-
-      const iframe = document.createElement("iframe");
-      iframe.src = url;
-      iframe.style.display = "none";
-
-      document.body.appendChild(iframe);
-
-      const isMobile =
-        /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
-          navigator.userAgent
-        );
-
-      if (isMobile) {
-        window.location.href = url;
-      } else {
-        try {
-          window.open(url, "_self");
-        } catch (e) {
-          window.location.href = url;
-        }
+  const handleResumeClick = async () => {
+    try {
+      if (!userDet?.resume?.data) {
+        toast.error("No resume data found");
+        return;
       }
 
-      setTimeout(() => {
-        document.body.removeChild(iframe);
-        URL.revokeObjectURL(url);
-      }, 10000);
+      // Build Data URL
+      const dataUrl = `data:${userDet.resume.contentType};base64,${userDet.resume.data}`;
+
+      // Fetch converts base64 → blob correctly (unlike atob())
+      const response = await fetch(dataUrl);
+      const blob = await response.blob();
+
+      const fileURL = URL.createObjectURL(blob);
+
+      // Open in new tab
+      window.open(fileURL, "_blank");
+
+      setTimeout(() => URL.revokeObjectURL(fileURL), 5000);
+    } catch (error) {
+      console.error(error);
+      toast.error("Unable to open resume");
     }
   };
 
@@ -130,7 +125,7 @@ const page = () => {
     return `${day}-${month}-${year}`;
   }
 
-  console.log(userDet, projects);
+  console.log(userDet);
 
   return (
     <div className="p-5">
@@ -199,9 +194,7 @@ const page = () => {
                     </Button>
                     <Button
                       className={`${
-                        userDet.resume && userDet.resume.length > 1
-                          ? null
-                          : "hidden"
+                        userDet?.resume?.data ? null : "hidden"
                       } w-full cursor-pointer text-black bg-white hover:bg-zinc-100`}
                       onClick={(e) => {
                         e.preventDefault();
@@ -212,7 +205,7 @@ const page = () => {
                       Download Resume
                     </Button>
 
-                    {!userDet?.resume.length >= 1 && (
+                    {!userDet?.resume >= 1 && (
                       <>
                         <Button
                           className={`w-full cursor-pointer text-black bg-white hover:bg-zinc-100`}
@@ -283,9 +276,9 @@ const page = () => {
                       onClick={() => setShowImageUpload(true)}
                       className="w-16 h-16 overflow-hidden rounded-full border-[1.6px] relative cursor-pointer border-zinc-400 flex justify-center items-center"
                     >
-                      {userDet?.image ? (
+                      {userDet?.profileImage ? (
                         <Image
-                          src={userDet?.image.data}
+                          src={userDet?.profileImage}
                           fill // This makes the image fill the parent container
                           alt="User image"
                           className="object-cover" // This ensures full coverage while maintaining aspect ratio
@@ -311,7 +304,26 @@ const page = () => {
             {userDet?.summary && (
               <div className="mt-4 mb-4">
                 <h1 className="text-lg font-semibold">Profile Summary</h1>
-                <h1 className="text-gray-500"> {userDet?.summary} </h1>
+
+                {/* Mobile < 625px with read more */}
+                {isMobile ? (
+                  <>
+                    <p className="text-gray-600">
+                      {showMore ? userDet.summary : shortSummary}
+                    </p>
+
+                    {userDet.summary.length > 150 && (
+                      <button
+                        onClick={() => setShowMore(!showMore)}
+                        className="text-blue-600 text-sm mt-1"
+                      >
+                        {showMore ? "Read less" : "Read more"}
+                      </button>
+                    )}
+                  </>
+                ) : (
+                  <p className="text-gray-600">{userDet.summary}</p>
+                )}
               </div>
             )}
 
@@ -346,7 +358,7 @@ const page = () => {
                     </span>
                     <span>•</span>
                     <span>
-                      {formatFileSize(userDet.resume.data?.data?.length || 0)}
+                      {formatFileSize(userDet.resume.data?.length || 0)}
                     </span>
                   </div>
                 </div>
@@ -356,11 +368,23 @@ const page = () => {
 
           {userDet?.education.length > 0 && (
             <div className="my-5  border-[1.6px] relative border-gray-300 rounded-lg p-3">
-              <div className="flex justify-between items-center">
+              <div className="flex justify-between mb-5 items-center">
                 <h1 className="font-semibold text-lg">Education</h1>
                 <div className="flex gap-4">
-                  <IoAddOutline className="text-2xl cursor-pointer" />
-                  <MdOutlineEdit className="text-2xl cursor-pointer" />
+                  <IoAddOutline
+                    onClick={() =>
+                      (window.location.href =
+                        "/job-seekerDashboard/profile/education")
+                    }
+                    className="text-2xl cursor-pointer"
+                  />
+                  <MdOutlineEdit
+                    onClick={() =>
+                      (window.location.href =
+                        "/job-seekerDashboard/profile/education")
+                    }
+                    className="text-2xl cursor-pointer"
+                  />
                 </div>
               </div>
 
@@ -371,8 +395,14 @@ const page = () => {
                     return (
                       <div
                         key={index}
-                        className="py-2 px-4 border-zinc-200 border-[1.6px] rounded-lg w-full flex flex-col"
+                        className="py-2 relative px-4 border-zinc-200 border-[1.6px] rounded-lg w-full flex flex-col"
                       >
+                        {edu.startYear && edu.endYear && (
+                          <h1 className="text-sm text-gray-500 border-zinc-300 bg-zinc-100 border-[1.6px] absolute -top-4 rounded-lg px-2 py-1 right-4">
+                            {formatDate(edu.startYear)} -{" "}
+                            {edu.endYear ? formatDate(edu.endYear) : "Present"}
+                          </h1>
+                        )}
                         <h1 className="font-semibold text-lg">
                           {" "}
                           {edu?.institution}{" "}
@@ -398,28 +428,52 @@ const page = () => {
             </div>
           )}
 
-          <div className="mt-5 border-[1.6px] relative border-gray-300 rounded-lg p-3">
-            <div className="flex justify-between items-center">
-              <h1 className="font-semibold text-lg">Skills</h1>
-              <div className="flex gap-4">
-                <IoAddOutline className="text-2xl cursor-pointer" />
-                <MdOutlineEdit className="text-2xl cursor-pointer" />
+          {userDet?.skills.length > 0 && (
+            <div className="mt-5 border-[1.6px] relative border-gray-300 rounded-lg p-3">
+              <div className="flex justify-between items-center">
+                <h1 className="font-semibold text-lg">Skills</h1>
+                <div className="flex gap-4">
+                  <IoAddOutline className="text-2xl cursor-pointer" />
+                  <MdOutlineEdit className="text-2xl cursor-pointer" />
+                </div>
               </div>
-            </div>
 
-            <div className="inline-flex flex-wrap max-w-6xl gap-x-2">
-              {userDet?.skills.slice(0, 4).map((elem, index) => (
-                <Badge key={index}>{elem}</Badge>
-              ))}
-            </div>
-            {userDet?.skills.length > 4 && (
-              <button className="text-blue-600 text-sm mt-2 hover:underline">
-                Show all ${userDet?.skills.length} skills
-              </button>
-            )}
-          </div>
+              {/* Mobile < 625px */}
+              {isMobile ? (
+                <>
+                  <div className="inline-flex flex-wrap gap-2">
+                    {(showAllSkills
+                      ? userDet.skills // show all
+                      : userDet.skills.slice(0, 6)
+                    ) // show only 6
+                      .map((skill, i) => (
+                        <Badge key={i}>{skill}</Badge>
+                      ))}
+                  </div>
 
-          {userDet?.experience.length > 0 && (
+                  {userDet.skills.length > 6 && (
+                    <button
+                      className="text-blue-600 text-sm mt-2"
+                      onClick={() => setShowAllSkills(!showAllSkills)}
+                    >
+                      {showAllSkills
+                        ? "Show less"
+                        : `Show all ${userDet.skills.length} skills`}
+                    </button>
+                  )}
+                </>
+              ) : (
+                /* Desktop >= 625px → Show all skills */
+                <div className="inline-flex flex-wrap gap-2 max-w-6xl">
+                  {userDet.skills.map((skill, i) => (
+                    <Badge key={i}>{skill}</Badge>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {userDet?.experience && userDet?.experience.length > 0 && (
             <div
               className={`${
                 userDet?.experience && userDet?.experience.length > 0
@@ -430,38 +484,58 @@ const page = () => {
               <div className="flex justify-between items-center">
                 <h1 className="font-semibold text-lg">Experience</h1>
                 <div className="flex gap-4">
-                  <IoAddOutline className="text-2xl cursor-pointer" />
-                  <MdOutlineEdit className="text-2xl cursor-pointer" />
+                  <IoAddOutline
+                    onClick={() =>
+                      (window.location.href =
+                        "/job-seekerDashboard/profile/experience")
+                    }
+                    className="text-2xl cursor-pointer"
+                  />
+                  <MdOutlineEdit
+                    onClick={() =>
+                      (window.location.href =
+                        "/job-seekerDashboard/profile/experience")
+                    }
+                    className="text-2xl cursor-pointer"
+                  />
                 </div>
               </div>
 
               <div className="flex flex-col py-4">
                 {userDet?.experience.map((elem, ind) => {
                   return (
-                    <div key={ind} className="rounded-lg w-full p-3">
+                    <div
+                      key={ind}
+                      className="rounded-lg border-[1.6px] border-zinc-200 p-1 w-full p-3"
+                    >
                       <h1 className="text-lg font-semibold">
                         {" "}
                         {elem.company}{" "}
                       </h1>
-                      <h1 className="text-base font-normal">
+                      <h1 className="text-base text-gray-400 font-normal">
                         {" "}
-                        {elem.position}{" "}
+                        {elem.position || elem.role}{" "}
                       </h1>
                       <h1 className="text-base font-normal">
                         {" "}
                         {elem.duration}{" "}
                       </h1>
 
-                      <h1 className="text-[15px] mt-2 font-semibold">
-                        Key Achievements :
-                      </h1>
-                      {elem?.achievements.map((ach, ind) => {
-                        return (
-                          <div key={ind}>
-                            <ol>{ach.description}</ol>
-                          </div>
-                        );
-                      })}
+                      {elem?.achievements && (
+                        <>
+                          <h1 className="text-[15px] mt-2 font-semibold">
+                            Key Achievements :
+                          </h1>
+                          {elem?.achievements &&
+                            elem?.achievements.map((ach, ind) => {
+                              return (
+                                <div key={ind}>
+                                  <ol>{ach.description}</ol>
+                                </div>
+                              );
+                            })}
+                        </>
+                      )}
                     </div>
                   );
                   <hr
@@ -502,7 +576,7 @@ const page = () => {
           )}
 
           {userDet?.projects.length > 0 && (
-            <div className=" border-[1.6px] relative border-gray-300 my-5 rounded-lg p-3">
+            <div className="border-[1.6px] relative border-gray-300 my-5 rounded-lg p-3">
               <div className="flex justify-between items-center">
                 <h1 className="font-semibold text-lg">Projects</h1>
                 <div className="flex gap-4">
@@ -524,16 +598,15 @@ const page = () => {
               </div>
 
               <div className="flex-col mt-5 flex">
-                {userDet?.projects.length > 0 &&
-                  projects.map((elem, idx) => {
-                    console.log(idx);
+                {userDet?.projects &&
+                  userDet?.projects.map((elem, idx) => {
                     return (
-                      <div key={idx} className="">
+                      <div key={idx} className="border[1.6px] border-zinc-300">
                         <h1 className="text-base font-semibold">
                           {" "}
                           {elem?.title}{" "}
                         </h1>
-                        <h2 className="font-normal text-base ">
+                        <h2 className="font-normal text-gray-500 text-base ">
                           {" "}
                           {elem.description}{" "}
                         </h2>
@@ -550,11 +623,11 @@ const page = () => {
                             : formatDate(elem.endDate)}{" "}
                         </h2>
 
-                        <h2>
-                          {" "}
-                          {elem?.skills?.join(" ,")}{" "}
-                          {elem?.technologies.join(" ,")}{" "}
-                        </h2>
+                        <div className="flex flex-wrap gap-1">
+                          {(elem?.skills || elem?.technologies).map((skill) => {
+                            return <Badge key={skill}>{skill}</Badge>;
+                          })}
+                        </div>
 
                         <div className="flex gap-2">
                           {elem.media && elem.media.length > 0 && (
@@ -592,7 +665,7 @@ const page = () => {
                           )}
                         </div>
 
-                        {idx !== projects.length - 1 && ( // ✅ Only render if not last
+                        {idx !== userDet?.projects.length - 1 && ( // ✅ Only render if not last
                           <hr className="border-[1.6px] rounded-xl my-3 border-zinc-200" />
                         )}
                       </div>

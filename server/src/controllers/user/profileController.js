@@ -1,110 +1,137 @@
 const { connection } = require("mongoose");
 const UserModel = require("../../models/UserModel");
+const UserProject = require("../../models/Project");
+const UserExperience = require("../../models/Experience");
+const UserEducation = require("../../models/Education");
+const UserAchievement = require("../../models/Achievement");
+const UserCertification = require("../../models/UserCertification");
+const { greetUserCont } = require("./sendMailContr");
+const cloudinary = require("cloudinary").v2;
 
 const getUserDet = async (req, res) => {
   try {
     const { id } = req.user;
+
     if (!id) {
-      return res.json({
+      return res.status(401).json({
         success: false,
         message: "Unauthorized to perform the action",
       });
     }
 
-    // Exclude confidential fields using projection (-fieldName)
-    const user = await UserModel.findById(id).select(
-      "-password -loginHistory -sessionToken -appliedJobs -lastLogin -lastLogout -lastActive -lastActiveDisplay -onlineStatus"
-    );
+    // 1️⃣ Fetch user
+    const user = await UserModel.findById(id)
+      .select(
+        "-password -sessionToken -lastLogin -lastLogout -lastActive -lastActiveDisplay -onlineStatus"
+      )
+      .lean();
 
     if (!user) {
-      return res.json({ success: false, message: "User not found" });
+      return res
+        .status(404)
+        .json({ success: false, message: "User not found" });
     }
 
-    res.json({ success: true, data: user });
+    // 2️⃣ Fetch nested collections
+    const [projects, experience, education, achievements, certifications] =
+      await Promise.all([
+        UserProject.find({ userId: id }).lean(),
+        UserExperience.find({ userId: id }).lean(),
+        UserEducation.find({ userId: id }).lean(),
+        UserAchievement.find({ userId: id }).lean(),
+        UserCertification.find({ userId: id }).lean(),
+      ]);
+
+    // 3️⃣ Final clean response
+    const responseData = {
+      _id: user._id,
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      desiredRole: user.desiredRole || null,
+      desiredDomain: user.desiredDomain || null,
+      skills: user.skills || [],
+      verifiedSkills: user.verifiedSkills || [],
+      summary: user.summary || "",
+
+      // Saved Opportunities
+      savedOpportunities: user.savedOpportunities || [],
+
+      // 🔥 Cloudinary URLs
+      profileImage: user.profilePath || null,
+      resume: user.resumePath || null,
+
+      // Attachments
+      projects,
+      experience,
+      education,
+      achievements,
+      certifications,
+    };
+
+    return res.json({ success: true, data: responseData });
   } catch (err) {
-    res.status(500).json({ success: false, message: err.message });
+    return res.status(500).json({
+      success: false,
+      message: "Server error: " + err.message,
+    });
   }
 };
 
-const uploadResume = async (req, res) => {
+const uploadProfileImage = async (req, res) => {
   const { id } = req.user;
-  const resumeData =
-    typeof req.body.ResumeData === "string"
-      ? JSON.parse(req.body.ResumeData)
-      : req.body.ResumeData;
-  const { Filename } = req.body;
 
-  if (!id) {
-    return res.json({
+  if (!req.file) {
+    return res.status(400).json({
       success: false,
-      message: "Unauthorized to perform the action",
+      message: "Profile image is required",
     });
   }
 
   try {
     const user = await UserModel.findById(id);
-    if (!user)
-      return res
-        .status(404)
-        .json({ success: false, message: "User not found" });
-
-    // Candidate Info
-    if (resumeData.candidate) {
-      user.desiredRole = resumeData.candidate.role || user.desiredRole;
-      user.summary = resumeData.candidate.summary || user.summary;
-      user.desiredDomain = resumeData.candidate.domain || user.desiredDomain;
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found",
+      });
     }
 
-    // Skills
-    if (resumeData.skills) {
-      user.skills = resumeData.skills;
+    // ===========================
+    // DELETE OLD IMAGE FROM CLOUDINARY
+    // ===========================
+    if (user.imagePath) {
+      const publicId = cloudinary.utils.extractPublicId(user.imagePath);
+      if (publicId) {
+        await cloudinary.uploader.destroy(publicId, {
+          resource_type: "image",
+        });
+      }
     }
 
-    // Education
-    if (resumeData.education) {
-      user.education = resumeData.education.map((edu) => ({
-        degree: edu.degree,
-        institution: edu.institution,
-        year: edu.year,
-      }));
-    }
+    // ===========================
+    // UPLOAD NEW IMAGE STREAM
+    // ===========================
+    const result = await new Promise((resolve, reject) => {
+      cloudinary.uploader
+        .upload_stream(
+          {
+            folder: "skillsorbit/profile_images",
+            public_id: `profile-${id}-${Date.now()}`,
+            resource_type: "image",
+          },
+          (error, result) => {
+            if (error) reject(error);
+            else resolve(result);
+          }
+        )
+        .end(req.file.buffer);
+    });
 
-    // Projects - push directly to userSchema
-    if (resumeData.projects) {
-      user.projects = resumeData.projects.map((project) => ({
-        title: project.name,
-        description: project.description,
-        technologies: project.technologies,
-      }));
-    }
-
-    // Achievements
-    if (resumeData.achievements) {
-      user.achievements = resumeData.achievements.map((ach) => ({
-        description: ach,
-      }));
-    }
-
-    // Experience
-    if (resumeData.experience) {
-      user.experience = resumeData.experience.map((exp) => ({
-        company: exp.company,
-        position: exp.position,
-        duration: exp.duration,
-        achievements:
-          exp.achievements?.map((ach) => ({ description: ach })) || [],
-      }));
-    }
-
-    // Resume file
-    user.resume = {
-      data: req.file.buffer,
-      contentType: req.file.mimetype,
-      filename: Filename,
-      lastModified: new Date(),
-    };
-
+    user.profilePath = result.secure_url;
     await user.save();
+
+    await greetUserCont(user.name, user.email);
 
     res.clearCookie("profileSetupPending", {
       httpOnly: true,
@@ -116,78 +143,16 @@ const uploadResume = async (req, res) => {
         : {}), // localhost me domain set mat karo
     });
 
-    res.json({ success: true, message: "Resume uploaded successfully" });
-  } catch (err) {
-    res.status(500).json({ success: false, message: err.message });
-  }
-};
-
-const uploadProfileImage = async (req, res) => {
-  try {
-    const { id } = req.user;
-    const { image } = req.body;
-
-    if (!id) {
-      return res.status(401).json({
-        success: false,
-        message: "Unauthorized to perform the action",
-      });
-    }
-
-    // Validate the Base64 image
-    if (!image || !image.startsWith("data:image/")) {
-      return res
-        .status(400)
-        .json({ success: false, message: "Invalid image data" });
-    }
-
-    // Extract Base64
-    const matches = image.match(/^data:image\/([A-Za-z-+/]+);base64,(.+)$/);
-    if (!matches || matches.length !== 3) {
-      return res
-        .status(400)
-        .json({ success: false, message: "Invalid image format" });
-    }
-
-    const fileType = matches[1];
-    const base64Data = matches[2];
-    const buffer = Buffer.from(base64Data, "base64");
-
-    // Validate file size (max 5MB)
-    if (buffer.length > 5 * 1024 * 1024) {
-      return res
-        .status(400)
-        .json({ success: false, message: "Image size exceeds 5MB limit" });
-    }
-
-    // Save to DB
-    const user = await UserModel.findById(id);
-    if (!user) {
-      return res
-        .status(404)
-        .json({ success: false, message: "User not found" });
-    }
-
-    user.image = {
-      data: image, // store Base64 directly
-      contentType: `image/${fileType}`,
-      lastModified: new Date(),
-    };
-
-    await user.save();
-
     res.json({
       success: true,
       message: "Profile image uploaded successfully",
-      userDet: {
-        name: user.name,
-        email: user.email,
-      },
+      profUrl: user.profilePath,
     });
   } catch (err) {
-    res
-      .status(500)
-      .json({ success: false, message: `Server error ${err.message}` });
+    res.status(500).json({
+      success: false,
+      message: err.message,
+    });
   }
 };
 
@@ -200,7 +165,7 @@ const getallProjects = async (req, res) => {
     });
 
   try {
-    const user = await UserModel.findById(id).populate("projects");
+    const user = await UserModel.findById(id).select("projects");
 
     if (!user) {
       return res
@@ -297,11 +262,9 @@ const uploadProject = async (req, res) => {
     };
 
     // ✅ Push into user's projects array
-    const updatedUser = await UserModel.findByIdAndUpdate(
-      req.user.id,
-      { $push: { projects: newProject } },
-      { new: true }
-    );
+    const updatedUser = await UserModel.findByIdAndUpdate(req.user.id, {
+      $push: { projects: newProject },
+    });
 
     if (!updatedUser) {
       return res.status(404).json({
@@ -321,13 +284,149 @@ const uploadProject = async (req, res) => {
   }
 };
 
-module.exports = { uploadProject };
+const getEducations = async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        message: "Unauthorized",
+      });
+    }
+
+    const educations = await UserEducation.find({ userId }).sort({
+      createdAt: -1,
+    });
+
+    return res.json({
+      success: true,
+      data: educations,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: "Server error: " + error.message,
+    });
+  }
+};
+
+const createEducation = async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        message: "Unauthorized",
+      });
+    }
+
+    const { degree, institution, startYear, endYear, attachmentUrl } = req.body;
+
+    if (!degree || !institution) {
+      return res.status(400).json({
+        success: false,
+        message: "Degree and institution are required",
+      });
+    }
+
+    const newEducation = await UserEducation.create({
+      userId,
+      degree,
+      institution,
+      startYear,
+      endYear,
+      attachments: attachmentUrl
+        ? { type: "link", url: attachmentUrl }
+        : undefined,
+    });
+
+    return res.json({
+      success: true,
+      message: "Education added successfully",
+      data: newEducation,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: "Server error: " + error.message,
+    });
+  }
+};
+
+const updateEducation = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const educationId = req.params.id;
+
+    if (!educationId) {
+      return res.status(400).json({
+        success: false,
+        message: "Education ID is required",
+      });
+    }
+
+    const edu = await UserEducation.findOne({ _id: educationId, userId });
+
+    if (!edu) {
+      return res.status(404).json({
+        success: false,
+        message: "Education not found or unauthorized",
+      });
+    }
+
+    const { institution, degree, startDate, endDate, attachments } = req.body;
+
+    if (institution !== undefined) edu.institution = institution;
+    if (degree !== undefined) edu.degree = degree;
+    if (startDate !== undefined) edu.startYear = startDate;
+    if (endDate !== undefined) edu.endYear = endDate;
+    if (attachments !== undefined) edu.attachments = attachments;
+
+    await edu.save();
+
+    res.json({
+      success: true,
+      message: "Education updated successfully",
+      data: edu,
+    });
+  } catch (err) {
+    res.status(500).json({
+      success: false,
+      message: "Server error: " + err.message,
+    });
+  }
+};
+
+const getUserExperiences = async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    const experiences = await UserExperience.find({ userId })
+      .sort({ from: -1 }) // latest first
+      .lean();
+
+    return res.status(200).json({
+      success: true,
+      data: experiences,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
 
 module.exports = {
   getUserDet,
-  uploadResume,
   uploadProfileImage,
   getallProjects,
   getSkills,
   uploadProject,
+  getEducations,
+  createEducation,
+  updateEducation,
+  getUserExperiences,
 };

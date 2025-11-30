@@ -1,5 +1,5 @@
 "use client";
-import React, { useState } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { recruiterSignupFields } from "../../InputFields";
 import see from "../../../../assests/eye.svg";
 import hide from "../../../../assests/eye-off.svg";
@@ -27,9 +27,55 @@ const page = () => {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isPasswordValid, setIsPasswordValid] = useState(false);
   const [loading, setLoading] = useState(false);
+  const companyInputRef = useRef(null);
+  const companyDropdownRef = useRef(null);
+
   const { isEmailVerified, showEmailVerifyBox, setShowEmailVerifyBox } =
     useEmailVerifyStore();
 
+  // -------------------------
+  // COMPANY SEARCH STATES
+  // -------------------------
+  const [companySearch, setCompanySearch] = useState("");
+  const [companyResults, setCompanyResults] = useState([]);
+  const [companyLoading, setCompanyLoading] = useState(false);
+
+  // -------------------------
+  // Fetch Company Suggestions from Indeed API
+  // -------------------------
+  const fetchCompanySuggestions = async (query) => {
+    if (!query || query.length < 2) {
+      setCompanyResults([]);
+      return;
+    }
+
+    try {
+      setCompanyLoading(true);
+
+      const url = await API.get(
+        `/common/getExternalAPI/getCompanyName?q=${encodeURIComponent(query)}`
+      );
+      console.log(url);
+
+      setCompanyResults(url.data || []);
+    } catch (err) {
+      console.log("Company search error:", err);
+    } finally {
+      setCompanyLoading(false);
+    }
+  };
+
+  // Debounced Search (400 ms)
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      fetchCompanySuggestions(companySearch);
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [companySearch]);
+
+  // -------------------------
+  // Form Handling
+  // -------------------------
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData((prev) => ({
@@ -38,13 +84,9 @@ const page = () => {
     }));
   };
 
-  const togglePasswordVisibility = () => {
-    setShowPassword(!showPassword);
-  };
-
-  const toggleConfirmPasswordVisibility = () => {
+  const togglePasswordVisibility = () => setShowPassword(!showPassword);
+  const toggleConfirmPasswordVisibility = () =>
     setShowConfirmPassword(!showConfirmPassword);
-  };
 
   const allFieldsFilled =
     formData.name.trim() !== "" &&
@@ -54,8 +96,30 @@ const page = () => {
     formData.designation.trim() !== "" &&
     formData.conPass.trim() !== "";
 
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (
+        companyInputRef.current &&
+        !companyInputRef.current.contains(e.target) &&
+        companyDropdownRef.current &&
+        !companyDropdownRef.current.contains(e.target)
+      ) {
+        setCompanyResults([]);
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    document.addEventListener("touchstart", handleClickOutside);
+
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("touchstart", handleClickOutside);
+    };
+  }, []);
+
   const passwordsMatch =
     formData.password === formData.conPass && formData.password.length > 0;
+
   const canSubmit =
     allFieldsFilled && passwordsMatch && isPasswordValid && isEmailVerified;
 
@@ -67,10 +131,7 @@ const page = () => {
     try {
       await API.post("/recruiter/auth/profilePendingCookie");
 
-      // 2. Then set the form data in store
       localStorage.setItem("RecruiterData", JSON.stringify(formData));
-
-      // 3. Finally redirect (with full reload)
       window.location.href = "/register/recruiter/profileSetup";
     } catch (error) {
       console.error("Submission failed:", error);
@@ -92,7 +153,7 @@ const page = () => {
                 ? setShowEmailVerifyBox(true)
                 : toast.warning("Please enter a valid email to verify");
             }}
-            className="text-blue-500 cursor-pointer font-semibold underline"
+            className="text-blue-500 cursor-pointer font-semibold underline ml-2"
           >
             Verify
           </p>
@@ -107,7 +168,7 @@ const page = () => {
         <EmailVerifyBox email={formData.email} name={formData.name} />
       )}
 
-      <div className="border-[1.6px] border-zinc-200 rounded-lg w-[98%] lg:w-[40%] md:w-[85%] lg px-5 min-h-fit py-6">
+      <div className="border-[1.6px] border-zinc-200 rounded-lg w-[98%] lg:w-[40%] md:w-[85%] px-5 py-6">
         <h1 className="text-xl font-semibold text-center">
           Register Recruiter
         </h1>
@@ -119,8 +180,54 @@ const page = () => {
                 {field.label}
               </label>
 
-              {/* Password field with toggle */}
-              {field.name === "password" ? (
+              {/* ------------------ COMPANY FIELD WITH AUTOCOMPLETE ------------------ */}
+              {field.name === "company" ? (
+                <div className="relative">
+                  <input
+                    ref={companyInputRef}
+                    type="text"
+                    name="company"
+                    placeholder={field.placeholder}
+                    required={field.required}
+                    value={formData.company}
+                    onChange={(e) => {
+                      handleChange(e);
+                      setCompanySearch(e.target.value);
+                    }}
+                    className="w-full px-4 py-2 border rounded-md"
+                  />
+
+                  {/* Loading spinner */}
+                  {companyLoading && (
+                    <div className="absolute right-3 top-3 w-4 h-4 border-2 border-gray-400 border-t-transparent animate-spin rounded-full"></div>
+                  )}
+
+                  {/* Results dropdown */}
+                  {companyResults.length > 0 && (
+                    <div
+                      ref={companyDropdownRef}
+                      className="absolute bg-white border rounded shadow-lg w-full mt-1 z-[500] max-h-60 overflow-y-auto"
+                    >
+                      {companyResults.map((item, idx) => (
+                        <div
+                          key={idx}
+                          className="py-2 px-3 cursor-pointer hover:bg-gray-100"
+                          onClick={() => {
+                            setFormData({
+                              ...formData,
+                              company: item.suggestion,
+                            });
+                            setCompanyResults([]);
+                          }}
+                        >
+                          <p className="font-medium">{item.suggestion}</p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ) : // ------------------ PASSWORD FIELD ------------------
+              field.name === "password" ? (
                 <div className="relative">
                   <input
                     type={showPassword ? "text" : "password"}
@@ -131,6 +238,7 @@ const page = () => {
                     onChange={handleChange}
                     className="w-full px-4 py-2 border rounded-md"
                   />
+
                   <button
                     type="button"
                     onClick={togglePasswordVisibility}
@@ -138,12 +246,12 @@ const page = () => {
                   >
                     <Image
                       src={showPassword ? see : hide}
-                      alt={showPassword ? "Hide password" : "Show password"}
+                      alt="toggle password"
                       width={20}
                       height={20}
-                      className="cursor-pointer"
                     />
                   </button>
+
                   {formData.password.length > 0 && (
                     <ReactPasswordChecklist
                       rules={[
@@ -156,19 +264,10 @@ const page = () => {
                       value={formData.password}
                       valueAgain={formData.conPass}
                       onChange={setIsPasswordValid}
-                      messages={{
-                        minLength: "Password has minimum 5 characters",
-                        specialChar:
-                          "Password must contain special characters such as $&*#",
-                        capital:
-                          "Password must contain at least one capital letter",
-                        lowercase:
-                          "Password must contain at least one lowercase letter",
-                      }}
                     />
                   )}
                 </div>
-              ) : /* Confirm Password field with toggle */
+              ) : // ------------------ CONFIRM PASSWORD FIELD ------------------
               field.name === "confirmPassword" ? (
                 <div className="relative">
                   <input
@@ -180,6 +279,7 @@ const page = () => {
                     onChange={handleChange}
                     className="w-full px-4 py-2 border rounded-md"
                   />
+
                   <button
                     type="button"
                     onClick={toggleConfirmPasswordVisibility}
@@ -187,46 +287,43 @@ const page = () => {
                   >
                     <Image
                       src={showConfirmPassword ? see : hide}
-                      alt={
-                        showConfirmPassword ? "Hide password" : "Show password"
-                      }
+                      alt="toggle password"
                       width={20}
                       height={20}
-                      className="cursor-pointer"
                     />
                   </button>
+
                   {formData.conPass.length > 0 && !passwordsMatch && (
-                    <p className="text-red-500 text-sm mt-1">
-                      Password do not match.
+                    <p className="text-red-500 text-sm">
+                      Passwords do not match.
                     </p>
                   )}
                 </div>
-              ) : /* Regular input fields */
+              ) : // ------------------ EMAIL FIELD ------------------
               field.name === "email" ? (
                 <>
                   <input
-                    type={field.type}
-                    name={field.name}
+                    type="email"
+                    name="email"
                     placeholder={field.placeholder}
                     required={field.required}
-                    value={formData[field.name]}
+                    value={formData.email}
                     onChange={handleChange}
                     className="w-full px-4 py-2 border rounded-md"
                   />
                   {formData.email.length > 0 && renderEmailStatus()}
                 </>
               ) : (
-                <>
-                  <input
-                    type={field.type}
-                    name={field.name}
-                    placeholder={field.placeholder}
-                    required={field.required}
-                    value={formData[field.name]}
-                    onChange={handleChange}
-                    className="w-full px-4 py-2 border rounded-md"
-                  />
-                </>
+                // ------------------ OTHER INPUTS ------------------
+                <input
+                  type={field.type}
+                  name={field.name}
+                  placeholder={field.placeholder}
+                  required={field.required}
+                  value={formData[field.name]}
+                  onChange={handleChange}
+                  className="w-full px-4 py-2 border rounded-md"
+                />
               )}
             </div>
           ))}
@@ -243,7 +340,7 @@ const page = () => {
           <h1>
             Already have an account?{" "}
             <a
-              className="text-blue-500 cursor-pointer cunderline font-semibold"
+              className="text-blue-500 cursor-pointer underline font-semibold"
               onClick={() => (window.location.href = "/login/recruiter")}
             >
               Login

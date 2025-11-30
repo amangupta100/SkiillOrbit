@@ -11,10 +11,12 @@
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {
+    "@google/genai": "^1.30.0",
     "@google/generative-ai": "^0.24.1",
     "axios": "^1.12.2",
     "bcryptjs": "^3.0.2",
     "bullmq": "^5.63.2",
+    "cloudinary": "^2.8.0",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",
     "date-fns": "^4.1.0",

@@ -4,7 +4,7 @@ import React from "react";
 
 const JobDetailsSkeleton = () => {
   return (
-    <div className="animate-pulse px-6 py-4 space-y-8 w-full">
+    <div className="animate-pulse p-2 space-y-8 w-full">
       {/* ============ Header Card ============ */}
       <div className="border border-zinc-200 p-6 rounded-xl shadow-sm space-y-4">
         {/* Logo + Title + Company + Tags */}

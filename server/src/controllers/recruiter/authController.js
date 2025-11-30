@@ -6,6 +6,27 @@ const {
   genAccessToken,
   genRefreshToken,
 } = require("../../helpers/recruiter/genAuthToken");
+const multer = require("multer");
+const { greetRecCont } = require("./sendMailContr");
+const cloudinary = require("cloudinary").v2;
+
+// Cloudinary config
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET,
+});
+
+// Extract publicId
+function extractPublicId(url) {
+  try {
+    const afterUpload = url.split("/upload/")[1];
+    const withoutVersion = afterUpload.substring(afterUpload.indexOf("/") + 1);
+    return withoutVersion.replace(/\.[^/.]+$/, "");
+  } catch (e) {
+    return null;
+  }
+}
 
 const setProfilePendingCookie = async (req, res) => {
   res.cookie("profileSetupPending", "true", {
@@ -140,102 +161,127 @@ const register = async (req, res) => {
       linkedin,
       companyWebsite,
       company,
-      companyTagLine,
+      companyTagline,
       companySize,
       headquarterLocation,
       industryType,
       aboutCompany,
-      foundedyear,
+      foundyear,
       companyType,
       twitter,
-      image,
     } = req.body;
 
-    const rec = await RecruiterModel.findOne({ email });
-    if (rec) {
+    // Check existing email
+    const existing = await RecruiterModel.findOne({ email });
+    if (existing) {
       return res.json({
         success: false,
-        message: "Email already exists Try Again!",
+        message: "Email already exists",
       });
     }
 
-    // Create company
+    // ---------------------------------------
+    // UPLOAD COMPANY LOGO
+    // ---------------------------------------
+    let imagePath = null;
+
+    if (req.file) {
+      const uploadResult = await new Promise((resolve, reject) => {
+        cloudinary.uploader
+          .upload_stream(
+            {
+              folder: "skillsorbit/company-logos",
+              public_id: `logo-${company}-${Date.now()}`,
+            },
+            (err, result) => {
+              if (err) reject(err);
+              else resolve(result);
+            }
+          )
+          .end(req.file.buffer);
+      });
+
+      imagePath = uploadResult.secure_url;
+    }
+
+    // ---------------------------------------
+    // CREATE COMPANY
+    // ---------------------------------------
     const newCompany = new CompanyModel({
       name: company,
-      tagline: companyTagLine,
-      websiteURL: companyWebsite || "",
+      tagline: companyTagline,
+      websiteURL: companyWebsite,
       numberOfEmployees: companySize,
       headquarters: headquarterLocation,
       industryType,
       about: aboutCompany,
-      foundedYear: foundedyear,
+      foundedYear: foundyear,
       companyType,
       linkedinUrl: linkedin,
       twitterUrl: twitter,
+      imagePath, // CLOUDINARY URL
       location: headquarterLocation,
-      logo: {
-        data: image, // base64 string from frontend
-        contentType: "image/png", // ya frontend se bhejna
-        lastModified: new Date(),
-      },
     });
 
     const savedCompany = await newCompany.save();
 
-    bcrypt.genSalt(10, (err, salt) => {
-      bcrypt.hash(password, salt, async (err, hash) => {
-        const newRecruiter = new RecruiterModel({
-          name,
-          email,
-          password: hash, // Note: In production, hash this password before saving
-          designation,
-          phoneNumber: phone,
-          linkedInProfile: linkedin,
-          companyId: savedCompany._id,
-          role: "recruiter",
-        });
+    // ---------------------------------------
+    // HASH PASSWORD
+    // ---------------------------------------
+    const hash = await bcrypt.hash(password, 10);
 
-        // Generate new session token
-        const sessionToken = newRecruiter.generateSessionToken();
-        newRecruiter.sessionToken = sessionToken;
+    // ---------------------------------------
+    // CREATE RECRUITER
+    // ---------------------------------------
+    const newRecruiter = new RecruiterModel({
+      name,
+      email,
+      password: hash,
+      designation,
+      phoneNumber: phone,
+      linkedInProfile: linkedin,
+      companyId: savedCompany._id,
+      role: "recruiter",
+    });
 
-        await newRecruiter.updateLastLogin();
-        await newRecruiter.save();
+    const sessionToken = newRecruiter.generateSessionToken();
+    newRecruiter.sessionToken = sessionToken;
 
-        const response = {
-          recruiter: {
-            _id: newRecruiter._id,
-            name: newRecruiter.name,
-            role: newRecruiter.role,
-            designation: newRecruiter.designation,
-            companyId: newRecruiter.companyId,
-          },
-          company: {
-            _id: savedCompany._id,
-            name: savedCompany.name,
-            logo: savedCompany.logo,
-          },
-        };
+    await newRecruiter.updateLastLogin();
+    await newRecruiter.save();
 
-        genAccessToken(newRecruiter, res);
-        genRefreshToken(newRecruiter, res);
+    // Send tokens
+    genAccessToken(newRecruiter, res);
+    genRefreshToken(newRecruiter, res);
 
-        res.clearCookie("profileSetupPending", {
-          httpOnly: true,
-          secure: process.env.NODE_ENV === "production",
-          sameSite: process.env.NODE_ENV === "production" ? "None" : "Lax",
-          maxAge: 15 * 60 * 1000, // 15 minutes
-          ...(process.env.NODE_ENV === "production"
-            ? { domain: ".skillsorbit.in" }
-            : {}), // localhost me domain set mat karo
-        });
+    await greetRecCont(newRecruiter.name, newRecruiter.email);
 
-        return res.json({
-          success: true,
-          message: "Recruiter Profile Setup successfully",
-          data: response, // 👈 fixed
-        });
-      });
+    res.clearCookie("profileSetupPending", {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: process.env.NODE_ENV === "production" ? "None" : "Lax",
+      maxAge: 15 * 60 * 1000, // 15 minutes
+      ...(process.env.NODE_ENV === "production"
+        ? { domain: ".skillsorbit.in" }
+        : {}), // localhost me domain set mat karo
+    });
+
+    return res.json({
+      success: true,
+      message: "Recruiter Profile Setup Successfully",
+      data: {
+        recruiter: {
+          _id: newRecruiter._id,
+          name: newRecruiter.name,
+          designation: newRecruiter.designation,
+          companyId: newRecruiter.companyId,
+        },
+        company: {
+          _id: savedCompany._id,
+          name: savedCompany.name,
+          imagePath: savedCompany.imagePath,
+        },
+      },
     });
   } catch (err) {
     return res.json({ success: false, message: err.message });

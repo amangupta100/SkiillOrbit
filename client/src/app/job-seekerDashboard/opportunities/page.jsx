@@ -491,7 +491,7 @@ const PageContent = () => {
                   {/* Header */}
                   <div className="flex items-start gap-4 mt-2 mb-2">
                     <Image
-                      src={job.company.logo.data}
+                      src={job.company.imagePath}
                       alt={job.company.name}
                       width={48}
                       height={48}

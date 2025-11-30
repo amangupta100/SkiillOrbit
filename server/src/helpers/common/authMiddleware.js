@@ -1,7 +1,11 @@
 const jwt = require("jsonwebtoken");
 const User = require("../../models/UserModel");
 const Recruiter = require("../../models/RecruiterModel");
+const Notification = require("../../models/NotificationModel");
 
+// ======================================================================
+// 🔐 AUTH MIDDLEWARE
+// ======================================================================
 const authMiddleware = async (req, res, next) => {
   const accessToken = req.cookies.accessToken;
 
@@ -19,7 +23,9 @@ const authMiddleware = async (req, res, next) => {
 
     return next();
   } catch (err) {
-    if (err.name === "TokenExpiredError" || err.message === "jwt expired") {
+    console.error("AUTH ERROR:", err);
+
+    if (err.name === "TokenExpiredError") {
       return res
         .status(401)
         .json({ success: false, message: "Access token expired" });
@@ -29,68 +35,81 @@ const authMiddleware = async (req, res, next) => {
   }
 };
 
-// helper function to attach user/recruiter/admin
+// ======================================================================
+// 🔵 Helper: Attach User + Image Path + Notifications (id always mapped)
+// ======================================================================
 async function attachUser(userId, req) {
   const [user, recruiter] = await Promise.all([
     User.findById(userId)
-      .select("_id name role image desiredRole desiredDomain email")
+      .select("_id name role desiredRole desiredDomain email profilePath")
       .lean(),
     Recruiter.findById(userId)
-      .select("_id name role image companyId email")
+      .select("_id name role companyId email profilePath")
       .lean(),
   ]);
 
   const authUser = user || recruiter;
   if (!authUser) return null;
 
-  // ⚠️ ADMIN VALIDATION (EMAIL MUST MATCH ENV)
+  // Convert _id → id (IMPORTANT)
+  const formattedUser = {
+    id: authUser._id.toString(),
+    name: authUser.name,
+    role: authUser.role,
+    email: authUser.email,
+    desiredRole: authUser.desiredRole,
+    desiredDomain: authUser.desiredDomain,
+  };
+
+  // ======================================================================
+  // 🖼 PROFILE IMAGE PATH (from User/Recruiter model - Cloudinary URL)
+  // ======================================================================
+  formattedUser.image = authUser.profilePath || null;
+
+  // ======================================================================
+  // 🔔 UNREAD NOTIFICATIONS
+  // ======================================================================
+  const unreadNotifications = await Notification.find({
+    receiverId: authUser._id,
+    receiverRole: authUser.role,
+    read: false,
+  })
+    .sort({ createdAt: -1 })
+    .lean();
+
+  formattedUser.notifications = unreadNotifications;
+
+  // ======================================================================
+  // 🔴 ADMIN VALIDATION
+  // ======================================================================
   const ADMIN_EMAIL = process.env.ADMIN_EMAIL;
-  const isAdmin = authUser.email === ADMIN_EMAIL;
+  const isAdmin = formattedUser.email === ADMIN_EMAIL;
 
-  if (authUser.role === "admin" && isAdmin) {
-    req.admin = {
-      id: authUser._id,
-      name: authUser.name,
-      role: "admin",
-      email: authUser.email,
-      image: authUser.image,
-    };
-    return authUser;
+  if (formattedUser.role === "admin" && isAdmin) {
+    req.admin = { ...formattedUser };
+    return formattedUser;
   }
 
-  // job-seeker
-  if (authUser.role === "job-seeker") {
-    req.user = {
-      id: authUser._id,
-      name: authUser.name,
-      role: authUser.role,
-      image: authUser.image,
-      desiredRole: authUser.desiredRole,
-      domain: authUser.desiredDomain,
-      email: authUser.email,
-    };
-    return authUser;
+  // ======================================================================
+  // 🟢 JOB SEEKER / USER
+  // ======================================================================
+  if (formattedUser.role === "job-seeker") {
+    req.user = { ...formattedUser };
+    return formattedUser;
   }
 
-  // recruiter
-  if (authUser.role === "recruiter") {
+  // ======================================================================
+  // 🔵 RECRUITER
+  // ======================================================================
+  if (formattedUser.role === "recruiter") {
     req.recruiter = {
-      id: authUser._id,
-      name: authUser.name,
-      role: authUser.role,
-      image: authUser.image,
-      email: authUser.email,
-      ...(recruiter && { company: recruiter.companyId }),
+      ...formattedUser,
+      company: recruiter.companyId, // attach companyId
     };
-    return authUser;
+    return formattedUser;
   }
 
-  // ❌ if role is admin but email does not match -- block it
-  if (authUser.role === "admin" && !isAdmin) {
-    return null;
-  }
-
-  return authUser;
+  return formattedUser;
 }
 
 module.exports = authMiddleware;

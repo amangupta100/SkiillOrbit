@@ -14,7 +14,9 @@ const Header = () => {
 
   if (
     pathname.startsWith("/interviews") ||
-    pathname.startsWith("/adminDashboard")
+    pathname.startsWith("/adminDashboard") ||
+    pathname.startsWith("/register/job-seeker/profileSetup") ||
+    pathname.startsWith("/register/recruiter/profileSetup")
   ) {
     return null;
   }

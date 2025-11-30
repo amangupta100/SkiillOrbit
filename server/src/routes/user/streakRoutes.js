@@ -27,9 +27,9 @@ router.get("/activity/heatmap", authMiddleware, async (req, res) => {
 
     let series;
     if (mode === "future") {
-      const raw = await getRawActivity(req.user.id, "2025-08-20");
+      const raw = await getRawActivity(req.user.id, "2025-11-24");
       // Create start date and pass it to fillSeries
-      const startDate = new Date("2025-08-20");
+      const startDate = new Date("2025-11-24");
       series = fillSeries(days, tz, raw, startDate);
     } else {
       const d = new Date();

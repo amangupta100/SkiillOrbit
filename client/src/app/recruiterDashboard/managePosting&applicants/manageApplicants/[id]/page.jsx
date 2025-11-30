@@ -33,6 +33,7 @@ import FilterApplicantModal from "@/components/recruiterDashboard/ManagePosting/
 import useChatStore from "@/store/recruiter/ChatStore";
 import useRecruiterAuthStore from "@/store/recruiter/recruiterauthStore";
 import useAuthStore from "@/store/authStore";
+import { useMemo } from "react";
 
 // 👈 Fallback for Suspense
 const PageFallback = () => <ApplicantSkeleton count={6} />;

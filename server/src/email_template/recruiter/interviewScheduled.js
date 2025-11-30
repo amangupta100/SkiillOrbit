@@ -101,7 +101,7 @@ const interviewScheduledTemplate = (
           <!-- Header -->
           <div class="header">
             <img
-              src="https://res.cloudinary.com/ddad6pdhx/image/upload/v1758799527/logo_qzuuth.png"
+              src="https://res.cloudinary.com/ddad6pdhx/image/upload/v1764000861/skillsorbit_logo_kvqgee.png"
               alt="SkillsOrbit Logo"
               style="max-width: 160px;"
             />

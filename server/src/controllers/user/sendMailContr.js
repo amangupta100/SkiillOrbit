@@ -10,14 +10,12 @@ const {
 let transport = nodemailer.createTransport({
   service: "gmail", // Use 'service' instead of 'host' and 'port'
   auth: {
-    user: "skillorbit01@gmail.com",
-    pass: "kyst ovep ombh toph",
+    user: process.env.SMTP_USER, // from env
+    pass: process.env.SMTP_PASSWORD, // from env
   },
 });
 
-const greetUserCont = async (req, res) => {
-  const { email, name } = req.body;
-
+const greetUserCont = async (name, email) => {
   try {
     let info = await transport.sendMail({
       from: "SkillsOrbit skillorbit01@gmail.com",
@@ -27,9 +25,9 @@ const greetUserCont = async (req, res) => {
       html: greetUser.replace("{{ .Candidate_Name}}", name),
     });
 
-    res.json({ success: true, message: "Email sent successfully" });
+    return { success: true, message: "Email sent successfully" };
   } catch (err) {
-    res.json({ success: false, message: "Email not send" });
+    return { success: false, message: "Email not send" };
   }
 };
 

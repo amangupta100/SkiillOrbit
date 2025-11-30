@@ -118,7 +118,8 @@ const JobForm = () => {
     jobForm.salaryRange.min > 1 &&
     jobForm.salaryRange.max > jobForm.salaryRange.min &&
     jobForm.benchmarkScore.length > 0 &&
-    jobForm.nop.length > 0;
+    jobForm.nop.length > 0 &&
+    jobForm.preferredJoiningDate.length > 0;
 
   const handleSubmit = async (e) => {
     e.preventDefault();

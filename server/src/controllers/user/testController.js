@@ -75,7 +75,7 @@ const getSkillsByUserDesiredRole = async (req, res) => {
 
 const genTest = async (req, res) => {
   try {
-    const { questions, selectedSkills: skills, questionCount } = req.body; // 👈 get from body instead of req.testDet
+    const { questions, selectedSkills: skills, questionCount } = req.body;
     const { id: userId } = req.user;
 
     if (!skills || !userId) {
@@ -90,15 +90,8 @@ const genTest = async (req, res) => {
       ? questions
       : JSON.parse(questions);
 
-    const embeddedQuestions = parsedQuestions.map((q) => ({
-      title: q.title,
-      type: q.type || "code",
-      codeSnippet: q.starterCode || "",
-      description: q.description || "",
-      difficulty: q.difficulty || "medium",
-      topics: q.topicsCovered,
-      sgenAnwer: q.solutionCode,
-    }));
+    // ❗ Only store question IDs — NOT full questions
+    const questionIds = parsedQuestions.map((q) => q._id);
 
     const durationMinutes = parseInt(questionCount) * 3;
 
@@ -109,7 +102,9 @@ const genTest = async (req, res) => {
       duration: `${durationMinutes} mins`,
       startedAt: new Date(),
       testCompleted: false,
-      questions: embeddedQuestions,
+
+      // Only store Question IDs
+      questions: questionIds,
     });
 
     await newTest.save();
@@ -119,9 +114,7 @@ const genTest = async (req, res) => {
     });
 
     const t_id = jwt.sign(
-      {
-        test_id: newTest._id,
-      },
+      { test_id: newTest._id },
       process.env.TEST_SECRET_KEY,
       { expiresIn: `${durationMinutes}m` }
     );
@@ -130,10 +123,10 @@ const genTest = async (req, res) => {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: process.env.NODE_ENV === "production" ? "None" : "Lax",
-      maxAge: durationMinutes * 60 * 1000, // duration minutes
+      maxAge: durationMinutes * 60 * 1000,
       ...(process.env.NODE_ENV === "production"
         ? { domain: ".skillsorbit.in" }
-        : {}), // localhost me domain set mat karo
+        : {}),
     });
 
     res.status(201).json({
@@ -207,13 +200,18 @@ function clearTestCookies(res, totalQuestions) {
     })
   );
 }
-
 const getaTestDet = async (req, res) => {
   try {
     const { id } = req.params;
     const { id: userId } = req.user;
 
-    const test = await TestModel.findOne({ _id: id, userId }).lean();
+    const test = await TestModel.findOne({ _id: id, userId })
+      .populate({
+        path: "questions",
+        model: "Question",
+        select: "title description difficulty starterCode topicsCovered", // ⭐ choose fields you want to expose
+      })
+      .lean();
 
     if (!test) {
       return res.status(404).json({

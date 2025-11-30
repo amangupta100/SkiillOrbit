@@ -149,21 +149,19 @@ async function rescheduleReminderJob(interview) {
   }
 }
 
-// --------------------
-// Exported email functions (unchanged behaviour, but use sendEmail helper)
-const greetRecCont = async (req, res) => {
-  const { email, name } = req.body;
+const greetRecCont = async (name, email) => {
   try {
-    await sendEmail({
-      to: email,
+    await transport.sendMail({
+      from: "SkillsOrbit",
+      to: `${email}`,
       subject: "Welcome to SkillsOrbit 🎉",
       text: `Hi ${name},\n\nWelcome to SkillsOrbit`,
       html: greetRecruiter.replace("{{ .Candidate_Name}}", name),
     });
-    res.json({ success: true, message: "Welcome email sent successfully" });
+    return { success: true, message: "Welcome email sent successfully" };
   } catch (err) {
     console.error("Error sending recruiter greeting:", err);
-    res.json({ success: false, message: "Email not sent" });
+    return { success: false, message: "Email not sent" };
   }
 };
 

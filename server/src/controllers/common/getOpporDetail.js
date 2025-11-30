@@ -1,41 +1,67 @@
 // controllers/opportunityController.js
 const Job = require("../../models/JobModel");
 const Internship = require("../../models/InternshipModel");
+const User = require("../../models/UserModel");
 
 const getOpportunityById = async (req, res) => {
   try {
     const { id } = req.params;
+    const userId = req.user?.id; // logged-in user ID
 
-    // Check if the ID exists in either Job or Internship collection
-    const job = await Job.findById(id)
-      .populate("company")
-      .populate("createdBy")
-      .populate("applications");
-    const internship = await Internship.findById(id)
-      .populate("company")
-      .populate("createdBy")
-      .populate("applications");
+    // ⭐ Fetch user saved list once (if logged in)
+    let userSaved = [];
+    if (userId) {
+      const user = await User.findById(userId, "savedOpportunities").lean();
+      userSaved = user?.savedOpportunities || [];
+    }
 
-    if (!job && !internship) {
+    // Helper → check if opportunity saved
+    const isSaved = userSaved.some(
+      (item) => String(item.itemId) === String(id)
+    );
+
+    // ⚡ 1️⃣ Try Job first
+    let job = await Job.findById(id)
+      .lean()
+      .populate("company", "name imagePath industry")
+      .populate("createdBy", "name email")
+      .populate("applications", "user status score");
+
+    if (job) {
+      return res.status(200).json({
+        success: true,
+        data: {
+          ...job,
+          type: "Job",
+          saved: isSaved, // 👈 Added here
+        },
+      });
+    }
+
+    // ⚡ 2️⃣ Try Internship
+    let internship = await Internship.findById(id)
+      .lean()
+      .populate("company", "name imagePath industry")
+      .populate("createdBy", "name email")
+      .populate("applications", "user status score");
+
+    if (!internship) {
       return res.status(404).json({
         success: false,
         message: "Opportunity not found",
       });
     }
 
-    // Determine which type of opportunity we found
-    const opportunity = job || internship;
-    const type = job ? "Job" : "Internship";
-
-    res.status(200).json({
+    return res.status(200).json({
       success: true,
       data: {
-        ...opportunity.toObject(),
-        type,
+        ...internship,
+        type: "Internship",
+        saved: isSaved, // 👈 Added here
       },
     });
   } catch (error) {
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       message: error.message,
     });

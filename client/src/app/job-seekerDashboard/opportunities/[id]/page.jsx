@@ -25,6 +25,8 @@ const page = () => {
   const [loading, setLoading] = useState(false);
   const [open, setOpen] = useState(false);
   const { user } = useAuthStore();
+  const [savingId, setSavingId] = useState(null);
+  const [isSaved, setIsSaved] = useState(false);
 
   const handleTooltipToggle = () => setOpen((prev) => !prev);
   const monthsMapper = {
@@ -100,47 +102,48 @@ const page = () => {
     return `Apply by  ${day} ${monthsMapper[month]} ${year}`;
   }
 
-  const DescriptionSections = ({ description }) => {
-    if (!description) return <p className="mb-6">No description available</p>;
+  const renderDescription = () => {
+    const description = opportunity?.description || opportunity?.about;
 
-    // Split by h2 headings
+    if (!description) return null;
+
     const sections = description.split(/<h2><strong>(.*?)<\/strong><\/h2>/);
+    let meaningfulSections = [];
+
+    for (let i = 1; i < sections.length; i += 2) {
+      const heading = sections[i];
+      const content = sections[i + 1] || "";
+
+      const plainText = content
+        .replace(/<[^>]+>/g, "")
+        .replace(/&nbsp;/g, "")
+        .trim();
+
+      if (plainText) {
+        meaningfulSections.push({ heading, content });
+      }
+    }
+
+    if (meaningfulSections.length === 0) return null;
 
     return (
       <div className="space-y-6">
-        {sections.map((section, index) => {
-          // Odd indexes = heading texts, even indexes = content
-          if (index % 2 === 1) {
-            const heading = sections[index];
-            const content = sections[index + 1]?.trim();
-
-            // Remove HTML tags and whitespace to check if content is empty
-            const plainText = content
-              ?.replace(/<[^>]*>/g, "")
-              .replace(/&nbsp;/g, "")
-              .trim();
-
-            if (!plainText) {
-              return null; // 🚫 skip rendering if no meaningful content
-            }
-
-            return (
-              <div key={index}>
-                <h2 className="text-xl font-bold mb-3">
-                  {heading.replace(/^#/, "")}
-                </h2>
-                <div
-                  className="prose"
-                  dangerouslySetInnerHTML={{ __html: content }}
-                />
-              </div>
-            );
-          }
-          return null;
-        })}
+        {meaningfulSections.map((sec, idx) => (
+          <div key={idx}>
+            <h2 className="text-xl font-bold mb-3">
+              {sec.heading.replace(/^#/, "")}
+            </h2>
+            <div
+              className="prose"
+              dangerouslySetInnerHTML={{ __html: sec.content }}
+            />
+          </div>
+        ))}
       </div>
     );
   };
+
+  const desc = renderDescription();
 
   const handleApply = () => {
     if (!opportunity) return;
@@ -162,6 +165,32 @@ const page = () => {
   );
 
   console.log(user.id);
+
+  const handleSaveOpp = async (id, type) => {
+    // 🔥 immediately toggle UI
+    setIsSaved((prev) => !prev);
+
+    try {
+      const res = await API.post("/job-seeker/opportunity/save", {
+        itemId: id,
+        itemType: type,
+      });
+
+      // Update based on backend response if needed
+      setIsSaved(res.data.saved);
+    } catch (err) {
+      toast.error(err?.response?.data?.message || "Error saving");
+
+      // revert UI if failed
+      setIsSaved((prev) => !prev);
+    }
+  };
+
+  useEffect(() => {
+    if (opportunity?.saved) {
+      setIsSaved(opportunity.saved); // initialize local state
+    }
+  }, [opportunity]);
 
   return (
     <div className="px-4 py-8">
@@ -186,7 +215,7 @@ const page = () => {
               {" "}
               {/* Changed to items-start */}
               <Image
-                src={opportunity.company.logo.data}
+                src={opportunity.company.imagePath}
                 alt={opportunity.company.name}
                 width={48}
                 height={48}
@@ -217,11 +246,14 @@ const page = () => {
                 </div>
                 <svg
                   xmlns="http://www.w3.org/2000/svg"
-                  fill="none"
+                  onClick={() =>
+                    handleSaveOpp(opportunity._id, opportunity.type)
+                  }
+                  fill={isSaved ? "red" : "none"}
                   viewBox="0 0 24 24"
                   strokeWidth="1.5"
-                  stroke="currentColor"
-                  className="w-5 h-5 md:inline-flex hidden cursor-pointer mt-0.5" // Adjusted size and added small top margin
+                  stroke={isSaved ? "red" : "currentColor"}
+                  className="w-5 h-5 md:inline-flex hidden cursor-pointer mt-0.5"
                 >
                   <path
                     strokeLinecap="round"
@@ -405,10 +437,13 @@ const page = () => {
                   <div className="flex gap-2 items-center md:hidden">
                     <svg
                       xmlns="http://www.w3.org/2000/svg"
-                      fill="none"
+                      stroke={isSaved ? "red" : "currentColor"}
                       viewBox="0 0 24 24"
                       strokeWidth="1.5"
-                      stroke="currentColor"
+                      onClick={() =>
+                        handleSaveOpp(opportunity._id, opportunity.type)
+                      }
+                      fill={isSaved ? "red" : "none"}
                       className="w-5 h-5 text-gray-500 cursor-pointer mt-0.5" // Adjusted size and added small top margin
                     >
                       <path
@@ -478,11 +513,13 @@ const page = () => {
             <div className="lg:col-span-2 space-y-6">
               {/*left section - Description Card */}
 
-              <div className="w-full relative py-5 px-4 rounded-lg border-[1.6px] border-zinc-200 bg-white">
-                <DescriptionSections
-                  description={opportunity?.description || opportunity?.about}
-                />
-              </div>
+              {desc ? (
+                <div className="w-full relative py-5 px-4 rounded-lg border-[1.6px] border-zinc-200 bg-white">
+                  {desc}
+                </div>
+              ) : (
+                <p className="mb-6">No description available</p>
+              )}
             </div>
 
             {/* RIGHT SIDEBAR */}

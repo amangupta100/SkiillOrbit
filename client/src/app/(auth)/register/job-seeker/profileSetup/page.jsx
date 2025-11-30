@@ -39,7 +39,6 @@ const page = () => {
   const [selectedOption, setSelectedOption] = useState(null);
   const isProceedActive = selectedOption !== null;
   const [showContent, setContent] = useState(null);
-  const checkAuth = useAuthStore((state) => state.checkAuth);
   const [databyMethod, setdatabyMethod] = useState(null);
   const [resumeData, setResumeData] = useState(null);
   const [inpResumeData, setInpResumeData] = useState(null);
@@ -62,7 +61,7 @@ const page = () => {
       }
       try {
         setLoading((prev) => ({ ...prev, domains: true }));
-        const response = await API.get("/job-seeker/getDomain", {
+        const response = await API.get("/job-seeker/skills/getDomain", {
           params: { type: "domains", q: query },
         });
         setSuggestions((prev) => ({ ...prev, domains: response.data }));
@@ -83,7 +82,7 @@ const page = () => {
       }
       try {
         setLoading((prev) => ({ ...prev, roles: true }));
-        const response = await API.get("/job-seeker/getRoles", {
+        const response = await API.get("/job-seeker/skills/getRoles", {
           params: { type: "roles", q: query, domain: formData.domain },
         });
         setSuggestions((prev) => ({
@@ -232,6 +231,7 @@ const page = () => {
       setBtnLoading(false);
     }
   };
+
   const SkeletonLoader = ({ count = 3 }) => {
     return (
       <ul className="mt-1 border rounded">

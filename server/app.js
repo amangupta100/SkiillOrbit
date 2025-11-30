@@ -99,6 +99,10 @@ app.use(
   require("./src/routes/common/getOpporDetail")
 );
 app.use("/api/common/person", require("./src/routes/common/getPersonDet"));
+app.use(
+  "/api/common/getExternalAPI",
+  require("./src/routes/common/getExtAPIData")
+);
 
 //support controller
 app.use("/api/common/support", require("./src/routes/admin/manageQuery"));

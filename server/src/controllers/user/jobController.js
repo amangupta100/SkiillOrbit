@@ -20,7 +20,7 @@ const getallOpportunity = async (req, res) => {
     const jobs = await Job.find()
       .populate(
         "company",
-        "name logo tagline websiteURL numberOfEmployees industryType headquarters about foundedYear companyType linkedinUrl location"
+        "name imagePath tagline websiteURL numberOfEmployees industryType headquarters about foundedYear companyType linkedinUrl location"
       )
       .populate("createdBy", "name email")
       .populate("applications")
@@ -31,7 +31,7 @@ const getallOpportunity = async (req, res) => {
     const internships = await InternshipModel.find()
       .populate(
         "company",
-        "name logo tagline websiteURL numberOfEmployees industryType headquarters about foundedYear companyType linkedinUrl location"
+        "name imagePath tagline websiteURL numberOfEmployees industryType headquarters about foundedYear companyType linkedinUrl location"
       )
       .populate("createdBy", "name email")
       .populate("applications")

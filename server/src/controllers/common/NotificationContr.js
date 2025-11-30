@@ -6,17 +6,23 @@ const InterviewSchema = require("../../models/InterviewSchema");
 
 const getNotifications = async (req, res) => {
   try {
-    const userId = req.user?.id || null;
-    const recruiterId = req.recruiter?.id || null;
+    const userId = req.user?.id;
+    const recruiterId = req.recruiter?.id;
 
-    let account = null;
+    let notifications = [];
 
     if (userId) {
-      account = await User.findById(userId).select("notifications name");
+      const user = await User.findById(
+        userId,
+        { notifications: 1 } // only fetch notifications
+      ).lean();
+      notifications = user?.notifications || [];
     } else if (recruiterId) {
-      account = await Recruiter.findById(recruiterId).select(
-        "notifications name"
-      );
+      const recruiter = await Recruiter.findById(
+        recruiterId,
+        { notifications: 1 } // only fetch notifications
+      ).lean();
+      notifications = recruiter?.notifications || [];
     } else {
       return res.status(401).json({
         success: false,
@@ -24,12 +30,15 @@ const getNotifications = async (req, res) => {
       });
     }
 
+    // Sort newest first
+    const sorted = [...notifications].sort(
+      (a, b) => new Date(b.createdAt) - new Date(a.createdAt)
+    );
+
     return res.status(200).json({
       success: true,
-      count: account.notifications.length,
-      notifications: account.notifications.sort(
-        (a, b) => new Date(b.createdAt) - new Date(a.createdAt)
-      ),
+      count: sorted.length,
+      notifications: sorted, // SAME RESPONSE FORMAT
     });
   } catch (error) {
     return res.status(500).json({
@@ -41,22 +50,15 @@ const getNotifications = async (req, res) => {
 
 const clearNotifications = async (req, res) => {
   try {
-    const userId = req.user?.id || null;
-    const recruiterId = req.recruiter?.id || null;
-
-    let account = null;
+    const userId = req.user?.id;
+    const recruiterId = req.recruiter?.id;
 
     if (userId) {
-      account = await User.findByIdAndUpdate(
-        userId,
-        { $set: { notifications: [] } },
-        { new: true }
-      );
+      await User.updateOne({ _id: userId }, { $set: { notifications: [] } });
     } else if (recruiterId) {
-      account = await Recruiter.findByIdAndUpdate(
-        recruiterId,
-        { $set: { notifications: [] } },
-        { new: true }
+      await Recruiter.updateOne(
+        { _id: recruiterId },
+        { $set: { notifications: [] } }
       );
     } else {
       return res.status(401).json({
@@ -67,7 +69,7 @@ const clearNotifications = async (req, res) => {
 
     return res.status(200).json({
       success: true,
-      message: "All notifications cleared",
+      message: "All notifications cleared", // SAME RESPONSE FORMAT
     });
   } catch (error) {
     return res.status(500).json({
@@ -79,21 +81,27 @@ const clearNotifications = async (req, res) => {
 
 const markNotificationsAsRead = async (req, res) => {
   try {
-    const userId = req.user?.id || null;
-    const recruiterId = req.recruiter?.id || null;
+    const userId = req.user?.id;
+    const recruiterId = req.recruiter?.id;
 
-    let account = null;
+    let Model = null;
+    let id = null;
 
     if (userId) {
-      account = await User.findById(userId);
+      Model = User;
+      id = userId;
     } else if (recruiterId) {
-      account = await Recruiter.findById(recruiterId);
+      Model = Recruiter;
+      id = recruiterId;
     } else {
       return res.status(401).json({
         success: false,
         message: "Unauthorized: No valid user or recruiter found",
       });
     }
+
+    // Fetch notifications only (fast)
+    const account = await Model.findById(id, { notifications: 1 }).lean();
 
     if (!account.notifications?.length) {
       return res.status(200).json({
@@ -102,17 +110,17 @@ const markNotificationsAsRead = async (req, res) => {
       });
     }
 
-    // 🔥 Mark all unread notifications as read
-    account.notifications = account.notifications.map((n) => ({
+    // Mark all notifications as read
+    const updated = account.notifications.map((n) => ({
       ...n,
       read: true,
     }));
 
-    await account.save();
+    await Model.updateOne({ _id: id }, { $set: { notifications: updated } });
 
     return res.status(200).json({
       success: true,
-      message: "Notifications marked as read",
+      message: "Notifications marked as read", // SAME RESPONSE FORMAT
     });
   } catch (error) {
     console.error("Error marking notifications as read:", error);
@@ -128,7 +136,6 @@ const getAllInterviews = async (req, res) => {
     const recruiter = req.recruiter;
     const user = req.user;
 
-    // Determine the query based on requester
     let query = {};
 
     if (recruiter && recruiter.id) {
@@ -143,15 +150,15 @@ const getAllInterviews = async (req, res) => {
     }
 
     const interviews = await InterviewSchema.find(query)
-      .populate("recruiterId", "name email")
+      .populate("recruiterId", "name email") // light populate
       .populate("applicantId", "name email")
-      .sort({ interviewDate: -1 }) // newest first
+      .sort({ interviewDate: -1 })
       .lean();
 
     return res.status(200).json({
       success: true,
       count: interviews.length,
-      interviews,
+      interviews, // EXACT SAME RESPONSE STRUCTURE
     });
   } catch (error) {
     console.error("Error fetching interviews:", error);

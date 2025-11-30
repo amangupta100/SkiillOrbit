@@ -62,9 +62,6 @@ const createJobPosting = async (req, res) => {
       nop,
     });
 
-    reqDet.jobPosts.push(job._id);
-    await reqDet.save();
-
     const populatedJob = await Job.findById(job._id).populate("company");
 
     return res.status(201).json({
@@ -218,7 +215,12 @@ const createInternPosting = async (req, res) => {
       location,
       preferredJoiningDate,
       mode,
-      experienceLevel: experience,
+      experienceLevel: ["Beginner", "Intermediate", "Expert"].includes(
+        experience
+      )
+        ? experience
+        : null,
+
       about,
       benefits: benefits || [],
       preferences: cleanedPreferences,
@@ -228,10 +230,6 @@ const createInternPosting = async (req, res) => {
 
     // 🧾 Create internship document
     const newInternship = await InternshipModel.create(internshipData);
-
-    // 🔗 Link internship to recruiter profile
-    reqDet.internships.push(newInternship._id);
-    await reqDet.save();
 
     // 🧩 Populate company details for response
     const populatedInternship = await InternshipModel.findById(
