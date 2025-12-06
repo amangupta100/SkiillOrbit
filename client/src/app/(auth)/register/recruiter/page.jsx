@@ -7,10 +7,11 @@ import Image from "next/image";
 import ReactPasswordChecklist from "react-password-checklist";
 import API from "@/utils/interceptor";
 import { Button } from "@/components/ui/button";
-import { useEmailVerifyStore } from "@/store/emailVerfStore";
 import EmailVerifyBox from "@/components/common/EmailVerifyBox";
+import PhoneVerifyBox from "@/components/common/PhoneAuth";
 import { toast } from "sonner";
 import ButtonLoader from "@/utils/Loader";
+import { useEmailVerifyStore } from "@/store/emailVerfStore";
 
 const page = () => {
   const [formData, setFormData] = useState({
@@ -27,11 +28,13 @@ const page = () => {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isPasswordValid, setIsPasswordValid] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [isEmailVerified, setIsEmailVerified] = useState(false); // Local state
+  const [isPhoneVerified, setIsPhoneVerified] = useState(false); // Local state
+  const [showPhoneVerifyBox, setShowPhoneVerifyBox] = useState(false); // Local state
+  const { showEmailVerifyBox, setShowEmailVerifyBox } = useEmailVerifyStore();
+
   const companyInputRef = useRef(null);
   const companyDropdownRef = useRef(null);
-
-  const { isEmailVerified, showEmailVerifyBox, setShowEmailVerifyBox } =
-    useEmailVerifyStore();
 
   // -------------------------
   // COMPANY SEARCH STATES
@@ -84,6 +87,52 @@ const page = () => {
     }));
   };
 
+  const getVerifiedData = () => {
+    return new Promise((resolve, reject) => {
+      const req = indexedDB.open("AuthDB", 2);
+
+      req.onsuccess = () => {
+        const db = req.result;
+        if (!db.objectStoreNames.contains("verifiedUsers")) return resolve([]);
+
+        const tx = db.transaction("verifiedUsers", "readonly");
+        const store = tx.objectStore("verifiedUsers");
+        const getAllReq = store.getAll();
+
+        getAllReq.onsuccess = () => resolve(getAllReq.result);
+        getAllReq.onerror = () => reject("Error reading IndexedDB");
+      };
+
+      req.onerror = () => reject("IndexedDB open failed");
+    });
+  };
+
+  useEffect(() => {
+    async function loadVerified() {
+      try {
+        const data = await getVerifiedData();
+
+        // Check phone
+        const phoneData = data.find((item) => item.type === "phone");
+        if (phoneData) {
+          setIsPhoneVerified(true);
+          setFormData((prev) => ({ ...prev, phone: phoneData.value }));
+        }
+
+        // Check email
+        const emailData = data.find((item) => item.type === "email");
+        if (emailData) {
+          setIsEmailVerified(true);
+          setFormData((prev) => ({ ...prev, email: emailData.value }));
+        }
+      } catch (err) {
+        console.error("Error loading verified data:", err);
+      }
+    }
+
+    loadVerified();
+  }, []);
+
   const togglePasswordVisibility = () => setShowPassword(!showPassword);
   const toggleConfirmPasswordVisibility = () =>
     setShowConfirmPassword(!showConfirmPassword);
@@ -94,7 +143,8 @@ const page = () => {
     formData.password.trim() !== "" &&
     formData.company.trim() !== "" &&
     formData.designation.trim() !== "" &&
-    formData.conPass.trim() !== "";
+    formData.conPass.trim() !== "" &&
+    formData.phone.trim() !== "";
 
   useEffect(() => {
     const handleClickOutside = (e) => {
@@ -121,7 +171,11 @@ const page = () => {
     formData.password === formData.conPass && formData.password.length > 0;
 
   const canSubmit =
-    allFieldsFilled && passwordsMatch && isPasswordValid && isEmailVerified;
+    allFieldsFilled &&
+    passwordsMatch &&
+    isPasswordValid &&
+    isEmailVerified &&
+    isPhoneVerified;
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -138,6 +192,11 @@ const page = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  // Email verification callbacks
+  const handleEmailVerifySuccess = () => {
+    setIsEmailVerified(true);
   };
 
   const renderEmailStatus = () => {
@@ -162,10 +221,53 @@ const page = () => {
     }
   };
 
+  // Phone verification callbacks
+  const handlePhoneVerifySuccess = () => {
+    setIsPhoneVerified(true);
+  };
+
+  const handlePhoneClose = () => {
+    setShowPhoneVerifyBox(false);
+  };
+
+  const renderPhoneStatus = () => {
+    if (isPhoneVerified) {
+      return <p className="text-green-600 text-sm mt-2">Phone verified!</p>;
+    } else {
+      return (
+        <div className="flex items-center">
+          <p className="text-red-600 text-sm">Phone not verified.</p>
+          <p
+            onClick={() => {
+              formData.phone.length > 8
+                ? setShowPhoneVerifyBox(true)
+                : toast.warning("Please enter a valid phone number to verify");
+            }}
+            className="text-blue-500 cursor-pointer font-semibold underline ml-2"
+          >
+            Verify
+          </p>
+        </div>
+      );
+    }
+  };
+
   return (
     <div className="flex items-center justify-center">
       {showEmailVerifyBox && (
-        <EmailVerifyBox email={formData.email} name={formData.name} />
+        <EmailVerifyBox
+          email={formData.email}
+          name={formData.name}
+          onVerifySuccess={handleEmailVerifySuccess}
+        />
+      )}
+      {showPhoneVerifyBox && (
+        <PhoneVerifyBox
+          name={formData.name}
+          isOpen={showPhoneVerifyBox}
+          onClose={handlePhoneClose}
+          onVerifySuccess={handlePhoneVerifySuccess}
+        />
       )}
 
       <div className="border-[1.6px] border-zinc-200 rounded-lg w-[98%] lg:w-[40%] md:w-[85%] px-5 py-6">
@@ -311,7 +413,23 @@ const page = () => {
                     onChange={handleChange}
                     className="w-full px-4 py-2 border rounded-md"
                   />
-                  {formData.email.length > 0 && renderEmailStatus()}
+                  {formData.email.length > 0 &&
+                    formData.email.includes("@") &&
+                    renderEmailStatus()}
+                </>
+              ) : // ------------------ PHONE FIELD ------------------
+              field.name === "phone" ? (
+                <>
+                  <input
+                    type="tel"
+                    name="phone"
+                    placeholder={field.placeholder}
+                    required={field.required}
+                    value={formData.phone}
+                    onChange={handleChange}
+                    className="w-full px-4 py-2 border rounded-md"
+                  />
+                  {formData.phone.length > 0 && renderPhoneStatus()}
                 </>
               ) : (
                 // ------------------ OTHER INPUTS ------------------

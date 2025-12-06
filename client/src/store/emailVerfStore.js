@@ -22,5 +22,6 @@ export const useEmailVerifyStore = create((set) => ({
       isOTPSent: false,
       otp: "",
       showEmailVerifyBox: false,
+      showOtpBox: false, // <---- THIS FIXES YOUR ISSUE
     }),
 }));

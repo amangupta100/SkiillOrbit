@@ -5,7 +5,7 @@ import LayoutContent from "./RootLayoutContent";
 export const metadata = {
   title: "SkillsOrbit",
   description:
-    "A skill-based job boarding platform where candidates must prove their abilities through tests before applying.",
+    "SkillsOrbit is a job landing platform that evaluates applicants by testing their skills in a anti-cheat environment connects them with recruiters and recruiters can manage,schedule interviews using built-in most-secured interview environment.",
   icons: {
     icon: "/icon.png",
   },

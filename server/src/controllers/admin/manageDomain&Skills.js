@@ -133,10 +133,96 @@ const addSkill = async (req, res) => {
   }
 };
 
+const addRole = async (req, res) => {
+  try {
+    const { domain, role } = req.body;
+
+    if (!domain || !role) {
+      return res.status(400).json({
+        success: false,
+        message: "Domain and role are required",
+      });
+    }
+
+    const updated = await JobSkillData.findOneAndUpdate(
+      { domain },
+      {
+        $addToSet: {
+          roles: { title: role, skills: [] },
+        },
+      },
+      { new: true }
+    );
+
+    if (!updated) {
+      return res.status(404).json({
+        success: false,
+        message: "Domain not found",
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "Role added successfully",
+      data: updated,
+    });
+  } catch (err) {
+    return res.status(500).json({
+      success: false,
+      message: "Failed to add role",
+      error: err.message,
+    });
+  }
+};
+
+const deleteRole = async (req, res) => {
+  try {
+    const { domain, role } = req.query;
+
+    if (!domain || !role) {
+      return res.status(400).json({
+        success: false,
+        message: "Domain and role are required",
+      });
+    }
+
+    const updated = await JobSkillData.findOneAndUpdate(
+      { domain },
+      {
+        $pull: {
+          roles: { title: role },
+        },
+      },
+      { new: true }
+    );
+
+    if (!updated) {
+      return res.status(404).json({
+        success: false,
+        message: "Domain not found",
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "Role deleted successfully",
+      data: updated,
+    });
+  } catch (err) {
+    return res.status(500).json({
+      success: false,
+      message: "Failed to delete role",
+      error: err.message,
+    });
+  }
+};
+
 module.exports = {
   getAllDomains,
   getRoles,
   getRoleSkills,
   deleteSkill,
   addSkill,
+  addRole,
+  deleteRole,
 };

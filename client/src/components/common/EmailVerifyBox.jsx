@@ -14,8 +14,13 @@ import {
 } from "@/components/lightswind/input-otp";
 
 const EmailVerifyBox = ({ email, name }) => {
-  const { setShowEmailVerifyBox, showOtpBox, setshowOtpBox, verifyEmail } =
-    useEmailVerifyStore();
+  const {
+    setShowEmailVerifyBox,
+    resetEmailVerification,
+    showOtpBox,
+    setshowOtpBox,
+    verifyEmail,
+  } = useEmailVerifyStore();
 
   const [emailVer, setEmail] = useState(email);
   const [loading, setLoading] = useState(false);
@@ -86,6 +91,60 @@ const EmailVerifyBox = ({ email, name }) => {
     }
   };
 
+  // IndexedDB Save
+  const saveEmailToIndexedDB = async (emailToSave) => {
+    return new Promise((resolve, reject) => {
+      const request = indexedDB.open("AuthDB", 2); // bump version if required
+
+      request.onupgradeneeded = () => {
+        const db = request.result;
+
+        // CREATE object store if missing
+        if (!db.objectStoreNames.contains("verifiedUsers")) {
+          db.createObjectStore("verifiedUsers", {
+            keyPath: "id",
+            autoIncrement: true,
+          });
+        }
+      };
+
+      request.onsuccess = () => {
+        const db = request.result;
+
+        // If store STILL doesn't exist → recreate DB fully
+        if (!db.objectStoreNames.contains("verifiedUsers")) {
+          console.warn("Store missing. Recreating DB...");
+          db.close();
+          const req2 = indexedDB.open("AuthDB", request.result.version + 1);
+          req2.onupgradeneeded = () => {
+            const newDB = req2.result;
+            newDB.createObjectStore("verifiedUsers", {
+              keyPath: "id",
+              autoIncrement: true,
+            });
+          };
+          req2.onsuccess = () => resolve(saveEmailToIndexedDB(emailToSave));
+          return;
+        }
+
+        // NORMAL WRITE
+        const tx = db.transaction("verifiedUsers", "readwrite");
+        const store = tx.objectStore("verifiedUsers");
+
+        store.add({
+          type: "email",
+          value: emailToSave,
+          verifiedAt: new Date().toISOString(),
+        });
+
+        tx.oncomplete = () => resolve(true);
+        tx.onerror = (err) => reject(err);
+      };
+
+      request.onerror = () => reject("Failed to open IndexedDB");
+    });
+  };
+
   // VERIFY OTP
   const handleVerifyOTP = async (e) => {
     e.preventDefault();
@@ -101,8 +160,8 @@ const EmailVerifyBox = ({ email, name }) => {
 
       if (data.success) {
         toast.success("OTP Verified");
-        setShowEmailVerifyBox(false);
-        verifyEmail();
+        await saveEmailToIndexedDB(emailVer);
+        resetEmailVerification();
       } else toast.error(data.message);
     } catch (err) {
       toast.error("Verification failed");
