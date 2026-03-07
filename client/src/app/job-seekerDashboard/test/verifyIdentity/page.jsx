@@ -7,7 +7,7 @@ import API from "@/utils/interceptor";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { useFaceDetection } from "@/components/userDashboard/testFunc/useFaceDetection";
 
-const genAI = new GoogleGenerativeAI("AIzaSyD9zE89oUuo-UBw4CPu4rLtZSQTx7bpDbE");
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_KEY);
 const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
 
 export default function FaceCapture() {
@@ -73,8 +73,8 @@ export default function FaceCapture() {
       // Step 3: Prepare AI prompt
       const prompt = `
         Generate ${questionCount} debugging questions for skills: ${
-        skills.length ? skills.join(", ") : "general programming"
-      }.Must be generate the questions differently in logic. Make sure problem is tricky and concept based questions and problem
+          skills.length ? skills.join(", ") : "general programming"
+        }.Must be generate the questions differently in logic. Make sure problem is tricky and concept based questions and problem
 
         Each question must have:
         - skill

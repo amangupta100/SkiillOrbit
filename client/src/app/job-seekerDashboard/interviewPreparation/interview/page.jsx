@@ -10,7 +10,7 @@ import { useSTT } from "@/hooks/job-seeker/interview_prep/useSTTWebSocket";
 import { useTTSWebsocket } from "@/hooks/job-seeker/interview_prep/useTTSWebsocket";
 
 // ✅ Initialize Google AI
-const genAI = new GoogleGenerativeAI("AIzaSyD9zE89oUuo-UBw4CPu4rLtZSQTx7bpDbE");
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_KEY);
 const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
 
 export default function InterviewPrep() {
@@ -69,7 +69,7 @@ If the user's input is off-topic or unclear, gently guide them back to the inter
           const lastTwo = messages.slice(-2);
           const contextText = lastTwo
             .map(
-              (m) => `${m.sender === "user" ? "Candidate" : "Jia"}: ${m.text}`
+              (m) => `${m.sender === "user" ? "Candidate" : "Jia"}: ${m.text}`,
             )
             .join("\n");
           prompt += `\nHere is the recent conversation for context:\n${contextText}\n`;
@@ -125,7 +125,7 @@ Then, continue the interview by asking the next general question relevant to the
         setLoading(false);
       }
     },
-    [messages]
+    [messages],
   );
 
   // Send message handler
@@ -244,7 +244,7 @@ Then, continue the interview by asking the next general question relevant to the
       } else toast.error(message);
     } catch (err) {
       return toast.error(
-        "Error ending session. Please try again." + err.message
+        "Error ending session. Please try again." + err.message,
       );
     } finally {
       setendLoadState(false);

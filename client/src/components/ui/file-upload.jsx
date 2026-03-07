@@ -17,7 +17,7 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 import { FaFilePdf, FaFileWord } from "react-icons/fa";
 import { ImageUpload } from "../common/ImageUpload";
 
-const genAI = new GoogleGenerativeAI("AIzaSyD9zE89oUuo-UBw4CPu4rLtZSQTx7bpDbE");
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_KEY);
 const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
 
 const mainVariant = {
@@ -86,7 +86,7 @@ export const FileUpload = ({
       toast.warning(
         data === "Resume"
           ? "Please upload a PDF or DOCX file."
-          : "Please upload an image file."
+          : "Please upload an image file.",
       );
       return;
     }
@@ -240,7 +240,7 @@ ${extractedText}
       toast.warning(
         data === "Resume"
           ? "Only PDF and DOCX files are allowed."
-          : "Only image files are allowed."
+          : "Only image files are allowed.",
       );
     },
   });
@@ -263,7 +263,7 @@ ${extractedText}
       if (success) {
         setLoaderStatus("Getting Data...");
         const data2 = await model.generateContent(
-          generateResumePrompt(parseText.data.data)
+          generateResumePrompt(parseText.data.data),
         );
 
         const responseText = data2.response.text();
@@ -274,7 +274,7 @@ ${extractedText}
         setLoaderStatus("Uploading Resume");
         const req = await API.post(
           "/job-seeker/profile/uploadResume",
-          formData
+          formData,
         );
         const { success: succ, message } = req.data;
         if (succ) {
@@ -323,7 +323,7 @@ ${extractedText}
           headers: {
             "Content-Type": "multipart/form-data",
           },
-        }
+        },
       );
       const { success, message, user } = resp.data;
 
@@ -429,7 +429,7 @@ ${extractedText}
                       }
                       className={cn(
                         "relative overflow-hidden bg-gray-300/60 dark:bg-neutral-900 flex flex-col justify-around p-4 mt-4 w-fit h-fit mx-auto rounded-md",
-                        "shadow-sm"
+                        "shadow-sm",
                       )}
                     >
                       <div className="flex items-center gap-3">
@@ -466,7 +466,7 @@ ${extractedText}
                     }}
                     className={cn(
                       "relative group-hover/file:shadow-2xl z-40 bg-white dark:bg-neutral-900 flex items-center justify-center h-32 mt-4 w-full max-w-[8rem] mx-auto rounded-md",
-                      "shadow-[0px_10px_50px_rgba(0,0,0,0.1)]"
+                      "shadow-[0px_10px_50px_rgba(0,0,0,0.1)]",
                     )}
                   >
                     {isDragActive ? (
@@ -518,7 +518,7 @@ ${extractedText}
                     "px-6 py-2 rounded-md z-[100] relative font-semibold transition",
                     files.length === 0
                       ? "bg-[#2A956B] text-white cursor-not-allowed opacity-60"
-                      : "bg-gray-200 hover:bg-gray-300 disabled:cursor-not-allowed cursor-pointer"
+                      : "bg-gray-200 hover:bg-gray-300 disabled:cursor-not-allowed cursor-pointer",
                   )}
                 >
                   {loading ? (
@@ -557,7 +557,7 @@ export function GridPattern() {
               }`}
             />
           );
-        })
+        }),
       )}
     </div>
   );
